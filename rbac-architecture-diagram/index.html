@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RBAC 权限架构对比图</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+:root {
+  --bg: #ffffff;
+  --surface: #f7f8fa;
+  --surface2: #eef0f4;
+  --border: #d8dbe3;
+  --text: #1a1d26;
+  --text2: #555a6e;
+  --text3: #8b90a0;
+  --blue: #2b5cd9;
+  --cyan: #0c7bb3;
+  --orange: #c06c00;
+  --red: #d42f3f;
+  --green: #158a3e;
+  --purple: #6b4faa;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Noto Sans SC', sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:var(--sans); background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
+
+/* ── Layout ── */
+.page { max-width:1100px; margin:0 auto; padding:40px 20px 80px; }
+.title { text-align:center; margin-bottom:12px; }
+.title h1 { font-size:22px; font-weight:700; letter-spacing:-0.5px; }
+.title p { font-size:12px; color:var(--text3); font-family:var(--mono); margin-top:6px; }
+
+/* ── Tab Switch ── */
+.tab-bar {
+  display:flex; justify-content:center; gap:4px; margin:24px 0 32px;
+  background:var(--surface); border-radius:10px; padding:4px; width:fit-content; margin-left:auto; margin-right:auto;
+}
+.tab-btn {
+  padding:8px 24px; border-radius:8px; border:none; background:transparent;
+  font-family:var(--sans); font-size:13px; font-weight:500; color:var(--text2);
+  cursor:pointer; transition:all .2s;
+}
+.tab-btn:hover { color:var(--text); }
+.tab-btn.active { background:var(--bg); color:var(--blue); box-shadow:0 1px 4px rgba(0,0,0,.08); font-weight:600; }
+.tab-btn .badge {
+  display:inline-block; font-size:9px; font-weight:700; padding:1px 6px; border-radius:4px;
+  margin-left:6px; vertical-align:middle;
+}
+.tab-btn .badge.current { background:rgba(192,108,0,.12); color:var(--orange); }
+.tab-btn .badge.proposed { background:rgba(21,138,62,.1); color:var(--green); }
+
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+
+/* ── Section ── */
+.section { margin-bottom:32px; }
+.section-header {
+  display:flex; align-items:center; gap:10px; margin-bottom:16px;
+}
+.section-tag {
+  font-size:10px; font-weight:700; font-family:var(--mono); padding:3px 10px;
+  border-radius:4px; letter-spacing:0.5px;
+}
+.section-tag.blue { background:rgba(43,92,217,.1); color:var(--blue); }
+.section-tag.cyan { background:rgba(12,123,179,.1); color:var(--cyan); }
+.section-tag.orange { background:rgba(192,108,0,.1); color:var(--orange); }
+.section-tag.red { background:rgba(212,47,63,.1); color:var(--red); }
+.section-tag.green { background:rgba(21,138,62,.1); color:var(--green); }
+.section-tag.purple { background:rgba(107,79,170,.1); color:var(--purple); }
+.section-title { font-size:15px; font-weight:600; }
+
+/* ── SVG Diagram Container ── */
+.diagram-wrap {
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  padding:24px; overflow-x:auto;
+}
+.diagram-wrap svg { display:block; margin:0 auto; }
+
+/* ── Clickable detail badge ── */
+.detail-btn {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:2px 8px 2px 6px; border-radius:10px; font-size:10px;
+  background:rgba(43,92,217,.1); color:var(--blue);
+  border:1px solid rgba(43,92,217,.25); cursor:pointer;
+  transition:all .15s; margin-left:6px; vertical-align:middle;
+  font-family:var(--sans);
+}
+.detail-btn:hover { background:rgba(43,92,217,.18); border-color:var(--blue); }
+.detail-btn svg { width:10px; height:10px; fill:currentColor; }
+.detail-btn.cyan { background:rgba(12,123,179,.1); color:var(--cyan); border-color:rgba(12,123,179,.25); }
+.detail-btn.cyan:hover { background:rgba(12,123,179,.18); border-color:var(--cyan); }
+.detail-btn.orange { background:rgba(192,108,0,.1); color:var(--orange); border-color:rgba(192,108,0,.25); }
+.detail-btn.orange:hover { background:rgba(192,108,0,.18); border-color:var(--orange); }
+.detail-btn.red { background:rgba(212,47,63,.1); color:var(--red); border-color:rgba(212,47,63,.25); }
+.detail-btn.red:hover { background:rgba(212,47,63,.18); border-color:var(--red); }
+.detail-btn.green { background:rgba(21,138,62,.1); color:var(--green); border-color:rgba(21,138,62,.25); }
+.detail-btn.green:hover { background:rgba(21,138,62,.18); border-color:var(--green); }
+.detail-btn.purple { background:rgba(107,79,170,.1); color:var(--purple); border-color:rgba(107,79,170,.25); }
+.detail-btn.purple:hover { background:rgba(107,79,170,.18); border-color:var(--purple); }
+
+/* ── Problem Cards ── */
+.problems { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; }
+.problem-card {
+  padding:14px 16px; border-radius:8px; border-left:3px solid var(--red);
+  background:rgba(212,47,63,.04);
+}
+.problem-card .pc-title { font-size:12px; font-weight:600; color:var(--red); margin-bottom:4px; }
+.problem-card .pc-desc { font-size:11.5px; color:var(--text2); line-height:1.6; }
+.problem-card .pc-desc code { font-family:var(--mono); font-size:10px; background:var(--surface2); padding:1px 5px; border-radius:3px; color:var(--cyan); }
+
+/* ── Advantage Cards ── */
+.advantages { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; }
+.adv-card {
+  padding:14px 16px; border-radius:8px; border-left:3px solid var(--green);
+  background:rgba(21,138,62,.04);
+}
+.adv-card .ac-title { font-size:12px; font-weight:600; color:var(--green); margin-bottom:4px; }
+.adv-card .ac-desc { font-size:11.5px; color:var(--text2); line-height:1.6; }
+.adv-card .ac-desc code { font-family:var(--mono); font-size:10px; background:var(--surface2); padding:1px 5px; border-radius:3px; color:var(--cyan); }
+
+/* ── Table ── */
+.data-table {
+  width:100%; border-collapse:collapse; font-size:12px; margin-top:12px;
+}
+.data-table th {
+  background:var(--surface2); padding:8px 12px; text-align:left;
+  font-weight:600; font-size:11px; color:var(--text2); border-bottom:1.5px solid var(--border);
+}
+.data-table td {
+  padding:8px 12px; border-bottom:1px solid var(--border); color:var(--text2); line-height:1.5;
+}
+.data-table code {
+  font-family:var(--mono); font-size:10px; background:var(--surface2);
+  padding:1px 5px; border-radius:3px; color:var(--cyan);
+}
+.data-table .level-badge {
+  display:inline-block; font-family:var(--mono); font-size:10px; font-weight:700;
+  padding:2px 8px; border-radius:4px; min-width:32px; text-align:center;
+}
+.level-badge.l0 { background:rgba(139,144,160,.1); color:var(--text3); }
+.level-badge.l1 { background:rgba(43,92,217,.1); color:var(--blue); }
+.level-badge.l5 { background:rgba(107,79,170,.1); color:var(--purple); }
+.level-badge.l10 { background:rgba(192,108,0,.1); color:var(--orange); }
+.level-badge.l100 { background:rgba(212,47,63,.1); color:var(--red); }
+
+/* ── Modal ── */
+.modal-overlay {
+  display:none; position:fixed; inset:0; z-index:100;
+  background:rgba(0,0,0,.3); backdrop-filter:blur(4px);
+  justify-content:center; align-items:center; padding:20px;
+}
+.modal-overlay.open { display:flex; }
+.modal {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; max-width:640px; width:100%; max-height:80vh;
+  overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.15);
+}
+.modal-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 20px; border-bottom:1px solid var(--border);
+  position:sticky; top:0; background:var(--surface); z-index:1;
+}
+.modal-header h2 { font-size:15px; font-weight:600; }
+.modal-close {
+  width:28px; height:28px; border-radius:6px; border:none;
+  background:var(--surface2); color:var(--text2); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-size:16px;
+  transition:all .15s;
+}
+.modal-close:hover { background:var(--border); color:var(--text); }
+.modal-body { padding:16px 20px 20px; }
+.modal-body h3 { font-size:13px; font-weight:600; color:var(--cyan); margin:14px 0 8px; }
+.modal-body h3:first-child { margin-top:0; }
+.modal-body p { font-size:12.5px; color:var(--text2); line-height:1.7; margin:4px 0; }
+.modal-body code {
+  font-family:var(--mono); font-size:11px; background:var(--surface2);
+  padding:1px 5px; border-radius:3px; color:var(--cyan);
+}
+.modal-body .flow-list { list-style:none; padding:0; margin:6px 0; }
+.modal-body .flow-list li {
+  font-size:12px; color:var(--text2); padding:5px 0 5px 20px;
+  position:relative; line-height:1.6;
+}
+.modal-body .flow-list li::before {
+  content:''; position:absolute; left:4px; top:11px;
+  width:6px; height:6px; border-radius:50%; background:var(--blue); opacity:.6;
+}
+.modal-body .algo-steps { list-style:none; padding:0; margin:8px 0; counter-reset:algo; }
+.modal-body .algo-steps li {
+  font-size:12px; color:var(--text); padding:6px 10px; margin:3px 0;
+  background:var(--surface2); border-radius:6px; border-left:3px solid var(--cyan);
+  line-height:1.5; display:flex; gap:8px;
+}
+.modal-body .algo-steps li .n {
+  font-weight:700; color:var(--cyan); flex-shrink:0; font-family:var(--mono); font-size:11px;
+  min-width:16px;
+}
+.modal-body .kv-grid {
+  display:grid; grid-template-columns:auto 1fr; gap:4px 12px;
+  font-size:12px; margin:8px 0;
+}
+.modal-body .kv-grid dt { color:var(--text3); font-family:var(--mono); font-size:11px; }
+.modal-body .kv-grid dd { color:var(--text2); }
+.modal-body .compare-table { width:100%; border-collapse:collapse; font-size:12px; margin:8px 0; }
+.modal-body .compare-table th { background:var(--surface2); padding:6px 10px; text-align:left; font-size:11px; font-weight:600; color:var(--text2); }
+.modal-body .compare-table td { padding:6px 10px; border-bottom:1px solid var(--border); color:var(--text2); }
+.modal-body .compare-table .old { color:var(--red); }
+.modal-body .compare-table .new { color:var(--green); }
+
+/* ── Tip ── */
+.tip { text-align:center; margin:16px 0; font-size:11px; color:var(--text3); }
+.tip span { color:var(--blue); }
+
+/* ── SVG interactive ── */
+svg .node-box { cursor:pointer; transition:opacity .15s; }
+svg .node-box:hover { opacity:.85; }
+svg text { font-family:'Noto Sans SC', sans-serif; }
+svg .mono { font-family:'JetBrains Mono', monospace; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="title">
+    <h1>RBAC 权限架构对比分析</h1>
+    <p>anyfast-partner-hub · click nodes for details</p>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="current">当前架构 <span class="badge current">CURRENT</span></button>
+    <button class="tab-btn" data-tab="proposed">新方案架构 <span class="badge proposed">PROPOSED</span></button>
+  </div>
+
+  <div class="tip">点击架构图中的 <span>节点</span> 或 <span>详情</span> 按钮查看详细信息</div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- TAB 1: CURRENT ARCHITECTURE                     -->
+  <!-- ════════════════════════════════════════════════ -->
+  <div class="tab-panel active" id="panel-current">
+
+    <!-- Section: Overview Diagram -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag orange">CURRENT</span>
+        <span class="section-title">当前权限架构总览</span>
+      </div>
+      <div class="diagram-wrap">
+        <svg id="svg-current" width="1040" height="680" viewBox="0 0 1040 680">
+          <!-- Background grid -->
+          <defs>
+            <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e8eaef" stroke-width="0.5"/>
+            </pattern>
+            <filter id="shadow1" x="-4%" y="-4%" width="108%" height="112%">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.08"/>
+            </filter>
+            <marker id="arrow-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L8,3 L0,6" fill="#2b5cd9"/>
+            </marker>
+            <marker id="arrow-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L8,3 L0,6" fill="#d42f3f"/>
+            </marker>
+            <marker id="arrow-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L8,3 L0,6" fill="#158a3e"/>
+            </marker>
+            <marker id="arrow-purple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L8,3 L0,6" fill="#6b4faa"/>
+            </marker>
+            <marker id="arrow-cyan" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L8,3 L0,6" fill="#0c7bb3"/>
+            </marker>
+          </defs>
+          <rect width="1040" height="680" fill="url(#grid)"/>
+
+          <!-- ═══ Title Area ═══ -->
+          <text x="520" y="30" text-anchor="middle" font-size="11" fill="#8b90a0" class="mono">Level-Based Role System · 固定等级权限模型</text>
+
+          <!-- ═══ Layer 1: HTTP Request ═══ -->
+          <g class="node-box" data-detail="cur-request">
+            <rect x="410" y="48" width="220" height="40" rx="8" fill="#fff" stroke="#d8dbe3" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="520" y="72" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1d26">HTTP 请求</text>
+          </g>
+
+          <!-- Arrow down -->
+          <line x1="520" y1="88" x2="520" y2="116" stroke="#2b5cd9" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+          <!-- ═══ Layer 2: Middleware Auth ═══ -->
+          <g class="node-box" data-detail="cur-middleware">
+            <rect x="310" y="118" width="420" height="56" rx="8" fill="rgba(43,92,217,.06)" stroke="rgba(43,92,217,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="520" y="140" text-anchor="middle" font-size="13" font-weight="600" fill="#2b5cd9">中间件鉴权层</text>
+            <text x="520" y="158" text-anchor="middle" font-size="10" fill="#555a6e" class="mono">UserAuth() / AdminAuth() / RootAuth()</text>
+          </g>
+
+          <!-- Arrow down -->
+          <line x1="520" y1="174" x2="520" y2="202" stroke="#2b5cd9" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+          <!-- ═══ Layer 3: Role Check (Core) ═══ -->
+          <g class="node-box" data-detail="cur-rolecheck">
+            <rect x="310" y="204" width="420" height="64" rx="8" fill="rgba(192,108,0,.06)" stroke="rgba(192,108,0,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="520" y="228" text-anchor="middle" font-size="13" font-weight="600" fill="#c06c00">核心判断逻辑</text>
+            <text x="520" y="248" text-anchor="middle" font-size="11" fill="#555a6e">user.Role >= minRole ?</text>
+            <text x="520" y="260" text-anchor="middle" font-size="9" fill="#8b90a0" class="mono">比较 users.role (int) 与固定阈值 (0/1/5/10/100)</text>
+          </g>
+
+          <!-- ═══ Layer 4: Role Hierarchy (5 levels) ═══ -->
+          <!-- Arrow to role hierarchy -->
+          <line x1="520" y1="268" x2="520" y2="300" stroke="#6b4faa" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+
+          <g class="node-box" data-detail="cur-roles">
+            <rect x="60" y="302" width="920" height="100" rx="10" fill="rgba(107,79,170,.04)" stroke="rgba(107,79,170,.2)" stroke-width="1" stroke-dasharray="4"/>
+            <text x="80" y="322" font-size="10" font-weight="600" fill="#6b4faa" class="mono">FIXED ROLE LEVELS</text>
+
+            <!-- Guest 0 -->
+            <rect x="80" y="334" width="120" height="52" rx="6" fill="#fff" stroke="rgba(139,144,160,.4)" stroke-width="1.2"/>
+            <text x="140" y="354" text-anchor="middle" font-size="11" font-weight="600" fill="#8b90a0">Guest</text>
+            <text x="140" y="372" text-anchor="middle" font-size="18" font-weight="700" fill="#8b90a0" class="mono">0</text>
+
+            <!-- Common 1 -->
+            <rect x="230" y="334" width="120" height="52" rx="6" fill="#fff" stroke="rgba(43,92,217,.4)" stroke-width="1.2"/>
+            <text x="290" y="354" text-anchor="middle" font-size="11" font-weight="600" fill="#2b5cd9">Common</text>
+            <text x="290" y="372" text-anchor="middle" font-size="18" font-weight="700" fill="#2b5cd9" class="mono">1</text>
+
+            <!-- Sales 5 -->
+            <rect x="380" y="334" width="120" height="52" rx="6" fill="#fff" stroke="rgba(107,79,170,.4)" stroke-width="1.2"/>
+            <text x="440" y="354" text-anchor="middle" font-size="11" font-weight="600" fill="#6b4faa">Sales</text>
+            <text x="440" y="372" text-anchor="middle" font-size="18" font-weight="700" fill="#6b4faa" class="mono">5</text>
+
+            <!-- Admin 10 -->
+            <rect x="530" y="334" width="120" height="52" rx="6" fill="#fff" stroke="rgba(192,108,0,.4)" stroke-width="1.2"/>
+            <text x="590" y="354" text-anchor="middle" font-size="11" font-weight="600" fill="#c06c00">Admin</text>
+            <text x="590" y="372" text-anchor="middle" font-size="18" font-weight="700" fill="#c06c00" class="mono">10</text>
+
+            <!-- Root 100 -->
+            <rect x="680" y="334" width="120" height="52" rx="6" fill="#fff" stroke="rgba(212,47,63,.4)" stroke-width="1.2"/>
+            <text x="740" y="354" text-anchor="middle" font-size="11" font-weight="600" fill="#d42f3f">Root</text>
+            <text x="740" y="372" text-anchor="middle" font-size="18" font-weight="700" fill="#d42f3f" class="mono">100</text>
+
+            <!-- Comparison arrows -->
+            <text x="208" y="364" text-anchor="middle" font-size="14" fill="#8b90a0">&lt;</text>
+            <text x="358" y="364" text-anchor="middle" font-size="14" fill="#8b90a0">&lt;</text>
+            <text x="508" y="364" text-anchor="middle" font-size="14" fill="#8b90a0">&lt;</text>
+            <text x="658" y="364" text-anchor="middle" font-size="14" fill="#8b90a0">&lt;</text>
+
+            <!-- "hardcoded" label -->
+            <rect x="840" y="344" width="120" height="28" rx="4" fill="rgba(212,47,63,.08)"/>
+            <text x="900" y="363" text-anchor="middle" font-size="10" font-weight="600" fill="#d42f3f">硬编码在代码中</text>
+          </g>
+
+          <!-- ═══ Layer 5: Database ═══ -->
+          <line x1="520" y1="402" x2="520" y2="434" stroke="#0c7bb3" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+          <g class="node-box" data-detail="cur-database">
+            <rect x="120" y="436" width="380" height="108" rx="8" fill="#fff" stroke="rgba(12,123,179,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="310" y="458" text-anchor="middle" font-size="12" font-weight="600" fill="#0c7bb3">users 表</text>
+            <line x1="140" y1="466" x2="480" y2="466" stroke="#d8dbe3" stroke-width="0.8"/>
+            <text x="150" y="484" font-size="10" fill="#555a6e" class="mono">id          int    (PK)</text>
+            <text x="150" y="498" font-size="10" fill="#555a6e" class="mono">role        int    (0/1/5/10/100)</text>
+            <text x="150" y="512" font-size="10" fill="#555a6e" class="mono">role_id     int    (FK → roles)</text>
+            <text x="150" y="526" font-size="10" fill="#555a6e" class="mono">agent_id    int    (租户隔离)</text>
+            <!-- Highlight role field -->
+            <rect x="145" y="490" width="320" height="14" rx="2" fill="rgba(192,108,0,.1)" stroke="none"/>
+          </g>
+
+          <!-- FK arrow to roles -->
+          <path d="M 500 510 L 540 510 L 540 480 L 560 480" fill="none" stroke="#0c7bb3" stroke-width="1.2" stroke-dasharray="4" marker-end="url(#arrow-cyan)"/>
+
+          <g class="node-box" data-detail="cur-roles-table">
+            <rect x="562" y="436" width="380" height="108" rx="8" fill="#fff" stroke="rgba(107,79,170,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="752" y="458" text-anchor="middle" font-size="12" font-weight="600" fill="#6b4faa">roles 表</text>
+            <line x1="582" y1="466" x2="922" y2="466" stroke="#d8dbe3" stroke-width="0.8"/>
+            <text x="582" y="484" font-size="10" fill="#555a6e" class="mono">id          int    (PK)</text>
+            <text x="582" y="498" font-size="10" fill="#555a6e" class="mono">code        string (admin/sales...)</text>
+            <text x="582" y="512" font-size="10" fill="#555a6e" class="mono">level       int    (绑定到固定等级)</text>
+            <text x="582" y="526" font-size="10" fill="#555a6e" class="mono">agent_id    int    (租户隔离)</text>
+            <!-- Highlight level field -->
+            <rect x="577" y="504" width="340" height="14" rx="2" fill="rgba(212,47,63,.1)" stroke="none"/>
+          </g>
+
+          <!-- ═══ Layer 6: Permission Result ═══ -->
+          <line x1="310" y1="544" x2="310" y2="576" stroke="#158a3e" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+          <line x1="752" y1="544" x2="752" y2="576" stroke="#d42f3f" stroke-width="1.5" marker-end="url(#arrow-red)"/>
+
+          <g class="node-box" data-detail="cur-permission-calc">
+            <rect x="120" y="578" width="380" height="44" rx="8" fill="rgba(21,138,62,.06)" stroke="rgba(21,138,62,.3)" stroke-width="1.5"/>
+            <text x="310" y="602" text-anchor="middle" font-size="11" font-weight="600" fill="#158a3e">权限结果：允许 / 拒绝</text>
+            <text x="310" y="616" text-anchor="middle" font-size="9" fill="#8b90a0" class="mono">calculateUserPermissions(role int)</text>
+          </g>
+
+          <g class="node-box" data-detail="cur-no-permission-table">
+            <rect x="562" y="578" width="380" height="44" rx="8" fill="rgba(212,47,63,.06)" stroke="rgba(212,47,63,.3)" stroke-width="1.5"/>
+            <text x="752" y="598" text-anchor="middle" font-size="11" font-weight="600" fill="#d42f3f">无独立权限表</text>
+            <text x="752" y="614" text-anchor="middle" font-size="9" fill="#8b90a0">角色=等级，等级=权限，无法细粒度控制</text>
+          </g>
+
+          <!-- ═══ Legend ═══ -->
+          <g transform="translate(60, 644)">
+            <text x="0" y="12" font-size="10" font-weight="600" fill="#8b90a0">LEGEND</text>
+            <line x1="60" y1="8" x2="80" y2="8" stroke="#2b5cd9" stroke-width="1.5"/>
+            <text x="84" y="12" font-size="10" fill="#8b90a0">请求流</text>
+            <line x1="130" y1="8" x2="150" y2="8" stroke="#2b5cd9" stroke-width="1.5" stroke-dasharray="4"/>
+            <text x="154" y="12" font-size="10" fill="#8b90a0">引用</text>
+            <rect x="195" y="0" width="14" height="14" rx="3" fill="rgba(192,108,0,.1)" stroke="none"/>
+            <text x="214" y="12" font-size="10" fill="#8b90a0">核心判断</text>
+            <rect x="275" y="0" width="14" height="14" rx="3" fill="rgba(212,47,63,.1)" stroke="none"/>
+            <text x="294" y="12" font-size="10" fill="#8b90a0">问题区域</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Section: Role Hierarchy Table -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag purple">ROLES</span>
+        <span class="section-title">固定角色等级详情</span>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr><th>角色</th><th>等级</th><th>Code</th><th>权限范围</th><th>中间件</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Guest</td>
+            <td><span class="level-badge l0">0</span></td>
+            <td><code>guest</code></td>
+            <td>最低权限，文件上传/下载</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>Common User</td>
+            <td><span class="level-badge l1">1</span></td>
+            <td><code>user</code></td>
+            <td>Token 使用、个人设置管理</td>
+            <td><code>UserAuth()</code></td>
+          </tr>
+          <tr>
+            <td>Sales</td>
+            <td><span class="level-badge l5">5</span></td>
+            <td><code>sales</code></td>
+            <td>管理分配的客户、查看销售数据</td>
+            <td><code>UserAuth()</code></td>
+          </tr>
+          <tr>
+            <td>Admin</td>
+            <td><span class="level-badge l10">10</span></td>
+            <td><code>admin</code></td>
+            <td>用户/渠道/模型管理（不含系统设置）</td>
+            <td><code>AdminAuth()</code></td>
+          </tr>
+          <tr>
+            <td>Root</td>
+            <td><span class="level-badge l100">100</span></td>
+            <td><code>root</code></td>
+            <td>完全系统访问，包括系统设置</td>
+            <td><code>RootAuth()</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section: Problems -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag red">PROBLEMS</span>
+        <span class="section-title">当前方案的局限性</span>
+      </div>
+      <div class="problems">
+        <div class="problem-card">
+          <div class="pc-title">固定等级，无法扩展</div>
+          <div class="pc-desc">角色等级硬编码为 <code>0/1/5/10/100</code>，新增角色必须找"空位"数字，且 <code>role >= minRole</code> 意味着高等级自动包含低等级所有权限，无法做互斥权限。</div>
+        </div>
+        <div class="problem-card">
+          <div class="pc-title">无独立权限表</div>
+          <div class="pc-desc">没有 <code>permissions</code> 表，权限与角色完全绑定。无法实现"Admin A 能管渠道但不能管用户"这样的细粒度控制。</div>
+        </div>
+        <div class="problem-card">
+          <div class="pc-title">SaaS 多租户受限</div>
+          <div class="pc-desc">代理商只能创建 <code>level &lt; 10</code> 的自定义角色，但中间件只认 <code>0/1/5/10/100</code> 阈值，自定义角色无法获得精确权限。</div>
+        </div>
+        <div class="problem-card">
+          <div class="pc-title">前端权限靠计算推断</div>
+          <div class="pc-desc"><code>calculateUserPermissions(role)</code> 用等级数字推算 UI 权限，无法根据实际授权的操作来控制界面展示。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- TAB 2: PROPOSED ARCHITECTURE                    -->
+  <!-- ════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-proposed">
+
+    <!-- Section: Overview Diagram -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag green">PROPOSED</span>
+        <span class="section-title">独立权限表方案架构</span>
+      </div>
+      <div class="diagram-wrap">
+        <svg id="svg-proposed" width="1040" height="870" viewBox="0 0 1040 870">
+          <rect width="1040" height="870" fill="url(#grid)"/>
+
+          <text x="520" y="30" text-anchor="middle" font-size="11" fill="#8b90a0" class="mono">Permission-Based RBAC · 独立权限表模型</text>
+
+          <!-- ═══ Layer 1: HTTP Request ═══ -->
+          <g class="node-box" data-detail="new-request">
+            <rect x="410" y="48" width="220" height="40" rx="8" fill="#fff" stroke="#d8dbe3" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="520" y="72" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1d26">HTTP 请求</text>
+          </g>
+
+          <line x1="520" y1="88" x2="520" y2="116" stroke="#2b5cd9" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+          <!-- ═══ Layer 2: Middleware Auth ═══ -->
+          <g class="node-box" data-detail="new-middleware">
+            <rect x="260" y="118" width="520" height="56" rx="8" fill="rgba(43,92,217,.06)" stroke="rgba(43,92,217,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="520" y="140" text-anchor="middle" font-size="13" font-weight="600" fill="#2b5cd9">中间件鉴权层（增强）</text>
+            <text x="520" y="158" text-anchor="middle" font-size="10" fill="#555a6e" class="mono">RequireAuth() + RequirePermission("channel:write")</text>
+          </g>
+
+          <line x1="520" y1="174" x2="520" y2="202" stroke="#2b5cd9" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+          <!-- ═══ Layer 3: Permission Check ═══ -->
+          <g class="node-box" data-detail="new-permcheck">
+            <rect x="260" y="204" width="520" height="64" rx="8" fill="rgba(21,138,62,.06)" stroke="rgba(21,138,62,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="520" y="228" text-anchor="middle" font-size="13" font-weight="600" fill="#158a3e">权限检查引擎</text>
+            <text x="520" y="248" text-anchor="middle" font-size="11" fill="#555a6e">user → role → role_permissions → permissions</text>
+            <text x="520" y="260" text-anchor="middle" font-size="9" fill="#8b90a0" class="mono">HasPermission(userId, "channel:write") → bool</text>
+          </g>
+
+          <!-- ═══ Layer 4: Three-Table Model ═══ -->
+          <line x1="520" y1="268" x2="520" y2="298" stroke="#6b4faa" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+
+          <!-- Big container for the 3 tables -->
+          <rect x="40" y="300" width="960" height="290" rx="10" fill="rgba(107,79,170,.03)" stroke="rgba(107,79,170,.15)" stroke-width="1" stroke-dasharray="4"/>
+          <text x="60" y="320" font-size="10" font-weight="600" fill="#6b4faa" class="mono">RBAC DATA MODEL (3 Tables + 1 Join Table)</text>
+
+          <!-- Table: roles -->
+          <g class="node-box" data-detail="new-roles-table">
+            <rect x="60" y="332" width="280" height="130" rx="8" fill="#fff" stroke="rgba(107,79,170,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <rect x="60" y="332" width="280" height="28" rx="8" fill="rgba(107,79,170,.08)"/>
+            <rect x="60" y="352" width="280" height="8" rx="0" fill="rgba(107,79,170,.08)"/>
+            <text x="200" y="352" text-anchor="middle" font-size="12" font-weight="700" fill="#6b4faa">roles</text>
+            <line x1="80" y1="364" x2="320" y2="364" stroke="#d8dbe3" stroke-width="0.8"/>
+            <text x="80" y="382" font-size="10" fill="#555a6e" class="mono">id          int    (PK)</text>
+            <text x="80" y="396" font-size="10" fill="#555a6e" class="mono">agent_id    int    (租户隔离)</text>
+            <text x="80" y="410" font-size="10" fill="#555a6e" class="mono">code        string (唯一标识)</text>
+            <text x="80" y="424" font-size="10" fill="#555a6e" class="mono">name        string (显示名称)</text>
+            <text x="80" y="438" font-size="10" fill="#158a3e" class="mono">is_system   bool   (系统角色)</text>
+            <text x="80" y="452" font-size="10" fill="#8b90a0" class="mono">// 移除 level 字段</text>
+          </g>
+
+          <!-- Table: permissions -->
+          <g class="node-box" data-detail="new-permissions-table">
+            <rect x="380" y="332" width="280" height="130" rx="8" fill="#fff" stroke="rgba(21,138,62,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <rect x="380" y="332" width="280" height="28" rx="8" fill="rgba(21,138,62,.08)"/>
+            <rect x="380" y="352" width="280" height="8" rx="0" fill="rgba(21,138,62,.08)"/>
+            <text x="520" y="352" text-anchor="middle" font-size="12" font-weight="700" fill="#158a3e">permissions (新增)</text>
+            <line x1="400" y1="364" x2="640" y2="364" stroke="#d8dbe3" stroke-width="0.8"/>
+            <text x="400" y="382" font-size="10" fill="#555a6e" class="mono">id          int    (PK)</text>
+            <text x="400" y="396" font-size="10" fill="#555a6e" class="mono">code        string (channel:read)</text>
+            <text x="400" y="410" font-size="10" fill="#555a6e" class="mono">name        string (查看渠道)</text>
+            <text x="400" y="424" font-size="10" fill="#555a6e" class="mono">module      string (channel)</text>
+            <text x="400" y="438" font-size="10" fill="#555a6e" class="mono">action      string (read)</text>
+            <text x="400" y="452" font-size="10" fill="#555a6e" class="mono">description string</text>
+          </g>
+
+          <!-- Table: role_permissions (join) -->
+          <g class="node-box" data-detail="new-role-perms">
+            <rect x="700" y="332" width="280" height="100" rx="8" fill="#fff" stroke="rgba(12,123,179,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <rect x="700" y="332" width="280" height="28" rx="8" fill="rgba(12,123,179,.08)"/>
+            <rect x="700" y="352" width="280" height="8" rx="0" fill="rgba(12,123,179,.08)"/>
+            <text x="840" y="352" text-anchor="middle" font-size="12" font-weight="700" fill="#0c7bb3">role_permissions</text>
+            <line x1="720" y1="364" x2="960" y2="364" stroke="#d8dbe3" stroke-width="0.8"/>
+            <text x="720" y="382" font-size="10" fill="#555a6e" class="mono">role_id       int  (FK)</text>
+            <text x="720" y="396" font-size="10" fill="#555a6e" class="mono">permission_id int  (FK)</text>
+            <text x="720" y="410" font-size="10" fill="#555a6e" class="mono">unique(role_id, permission_id)</text>
+          </g>
+
+          <!-- FK Lines: roles → role_permissions (走底部绕行) -->
+          <path d="M 340 382 L 365 382 L 365 472 L 840 472 L 840 432" fill="none" stroke="#0c7bb3" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow-cyan)"/>
+          <text x="590" y="468" text-anchor="middle" font-size="9" fill="#0c7bb3" class="mono">role_id (FK)</text>
+
+          <!-- FK Lines: permissions → role_permissions (走底部绕行) -->
+          <path d="M 660 396 L 685 396 L 685 456 L 810 456 L 810 432" fill="none" stroke="#158a3e" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow-green)"/>
+          <text x="750" y="452" text-anchor="middle" font-size="9" fill="#158a3e" class="mono">permission_id (FK)</text>
+
+          <!-- users table -->
+          <g class="node-box" data-detail="new-users-table">
+            <rect x="60" y="504" width="280" height="76" rx="8" fill="#fff" stroke="rgba(43,92,217,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <rect x="60" y="504" width="280" height="28" rx="8" fill="rgba(43,92,217,.08)"/>
+            <rect x="60" y="524" width="280" height="8" rx="0" fill="rgba(43,92,217,.08)"/>
+            <text x="200" y="524" text-anchor="middle" font-size="12" font-weight="700" fill="#2b5cd9">users (简化)</text>
+            <line x1="80" y1="536" x2="320" y2="536" stroke="#d8dbe3" stroke-width="0.8"/>
+            <text x="80" y="554" font-size="10" fill="#555a6e" class="mono">role_id     int    (FK → roles)</text>
+            <text x="80" y="568" font-size="10" fill="#8b90a0" class="mono">// 移除 role (int level) 字段</text>
+          </g>
+
+          <!-- FK: users → roles -->
+          <path d="M 200 504 L 200 462" fill="none" stroke="#6b4faa" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+
+          <!-- ═══ Layer 5: Permission Resolution Flow ═══ -->
+          <line x1="520" y1="590" x2="520" y2="626" stroke="#158a3e" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+          <g class="node-box" data-detail="new-resolution">
+            <rect x="120" y="628" width="800" height="72" rx="8" fill="rgba(21,138,62,.04)" stroke="rgba(21,138,62,.2)" stroke-width="1.5"/>
+            <text x="520" y="652" text-anchor="middle" font-size="12" font-weight="600" fill="#158a3e">权限解析流程</text>
+
+            <!-- Step boxes -->
+            <rect x="140" y="662" width="130" height="28" rx="4" fill="rgba(43,92,217,.08)"/>
+            <text x="205" y="680" text-anchor="middle" font-size="10" font-weight="500" fill="#2b5cd9">user.role_id</text>
+
+            <text x="285" y="680" text-anchor="middle" font-size="12" fill="#8b90a0">→</text>
+
+            <rect x="300" y="662" width="160" height="28" rx="4" fill="rgba(107,79,170,.08)"/>
+            <text x="380" y="680" text-anchor="middle" font-size="10" font-weight="500" fill="#6b4faa">role_permissions</text>
+
+            <text x="475" y="680" text-anchor="middle" font-size="12" fill="#8b90a0">→</text>
+
+            <rect x="490" y="662" width="160" height="28" rx="4" fill="rgba(21,138,62,.08)"/>
+            <text x="570" y="680" text-anchor="middle" font-size="10" font-weight="500" fill="#158a3e">permission codes</text>
+
+            <text x="665" y="680" text-anchor="middle" font-size="12" fill="#8b90a0">→</text>
+
+            <rect x="680" y="662" width="220" height="28" rx="4" fill="rgba(192,108,0,.08)"/>
+            <text x="790" y="680" text-anchor="middle" font-size="10" font-weight="500" fill="#c06c00">缓存 Set&lt;string&gt;</text>
+          </g>
+
+          <!-- ═══ Layer 6: Benefits ═══ -->
+          <line x1="520" y1="700" x2="520" y2="732" stroke="#158a3e" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+          <g class="node-box" data-detail="new-benefits">
+            <rect x="120" y="734" width="190" height="50" rx="8" fill="rgba(21,138,62,.06)" stroke="rgba(21,138,62,.25)" stroke-width="1"/>
+            <text x="215" y="756" text-anchor="middle" font-size="11" font-weight="600" fill="#158a3e">细粒度控制</text>
+            <text x="215" y="772" text-anchor="middle" font-size="9" fill="#8b90a0">channel:read/write</text>
+          </g>
+          <g class="node-box" data-detail="new-benefits">
+            <rect x="330" y="734" width="190" height="50" rx="8" fill="rgba(21,138,62,.06)" stroke="rgba(21,138,62,.25)" stroke-width="1"/>
+            <text x="425" y="756" text-anchor="middle" font-size="11" font-weight="600" fill="#158a3e">多租户自定义</text>
+            <text x="425" y="772" text-anchor="middle" font-size="9" fill="#8b90a0">每个代理商独立角色</text>
+          </g>
+          <g class="node-box" data-detail="new-benefits">
+            <rect x="540" y="734" width="190" height="50" rx="8" fill="rgba(21,138,62,.06)" stroke="rgba(21,138,62,.25)" stroke-width="1"/>
+            <text x="635" y="756" text-anchor="middle" font-size="11" font-weight="600" fill="#158a3e">动态权限</text>
+            <text x="635" y="772" text-anchor="middle" font-size="9" fill="#8b90a0">运行时修改，无需改代码</text>
+          </g>
+          <g class="node-box" data-detail="new-benefits">
+            <rect x="750" y="734" width="190" height="50" rx="8" fill="rgba(21,138,62,.06)" stroke="rgba(21,138,62,.25)" stroke-width="1"/>
+            <text x="845" y="756" text-anchor="middle" font-size="11" font-weight="600" fill="#158a3e">前端精确控制</text>
+            <text x="845" y="772" text-anchor="middle" font-size="9" fill="#8b90a0">API 返回权限列表</text>
+          </g>
+
+          <!-- Legend -->
+          <g transform="translate(60, 830)">
+            <text x="0" y="12" font-size="10" font-weight="600" fill="#8b90a0">LEGEND</text>
+            <rect x="60" y="1" width="14" height="14" rx="3" fill="rgba(107,79,170,.1)"/>
+            <text x="80" y="12" font-size="10" fill="#8b90a0">角色表</text>
+            <rect x="130" y="1" width="14" height="14" rx="3" fill="rgba(21,138,62,.1)"/>
+            <text x="150" y="12" font-size="10" fill="#8b90a0">权限表 (新增)</text>
+            <rect x="230" y="1" width="14" height="14" rx="3" fill="rgba(12,123,179,.1)"/>
+            <text x="250" y="12" font-size="10" fill="#8b90a0">关联表</text>
+            <rect x="310" y="1" width="14" height="14" rx="3" fill="rgba(43,92,217,.1)"/>
+            <text x="330" y="12" font-size="10" fill="#8b90a0">用户表</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Section: Permission Table Design -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag green">PERMISSIONS</span>
+        <span class="section-title">权限定义示例</span>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr><th>模块</th><th>权限代码</th><th>名称</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>channel</td><td><code>channel:read</code></td><td>查看渠道</td><td>查看渠道列表和详情</td></tr>
+          <tr><td>channel</td><td><code>channel:write</code></td><td>管理渠道</td><td>创建、编辑、删除渠道</td></tr>
+          <tr><td>user</td><td><code>user:read</code></td><td>查看用户</td><td>查看用户列表和详情</td></tr>
+          <tr><td>user</td><td><code>user:write</code></td><td>管理用户</td><td>创建、编辑、禁用用户</td></tr>
+          <tr><td>user</td><td><code>user:role</code></td><td>分配角色</td><td>修改用户角色</td></tr>
+          <tr><td>token</td><td><code>token:read</code></td><td>查看令牌</td><td>查看 API Token 列表</td></tr>
+          <tr><td>token</td><td><code>token:write</code></td><td>管理令牌</td><td>创建、编辑、删除 Token</td></tr>
+          <tr><td>model</td><td><code>model:read</code></td><td>查看模型</td><td>查看模型定价</td></tr>
+          <tr><td>model</td><td><code>model:write</code></td><td>管理模型</td><td>修改模型定价和配置</td></tr>
+          <tr><td>log</td><td><code>log:read</code></td><td>查看日志</td><td>查看请求日志</td></tr>
+          <tr><td>setting</td><td><code>setting:read</code></td><td>查看设置</td><td>查看系统设置</td></tr>
+          <tr><td>setting</td><td><code>setting:write</code></td><td>修改设置</td><td>修改系统设置（仅 Root）</td></tr>
+          <tr><td>dashboard</td><td><code>dashboard:read</code></td><td>查看仪表盘</td><td>查看统计数据</td></tr>
+          <tr><td>sales</td><td><code>sales:manage</code></td><td>销售管理</td><td>管理客户分配</td></tr>
+          <tr><td>role</td><td><code>role:read</code></td><td>查看角色</td><td>查看角色列表</td></tr>
+          <tr><td>role</td><td><code>role:write</code></td><td>管理角色</td><td>创建、编辑角色和权限分配</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section: Advantages -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag green">ADVANTAGES</span>
+        <span class="section-title">新方案优势</span>
+      </div>
+      <div class="advantages">
+        <div class="adv-card">
+          <div class="ac-title">细粒度权限控制</div>
+          <div class="ac-desc">基于 <code>module:action</code> 模式，可以精确控制每个角色对每个模块的读写权限。例如 "运营角色" 只能看日志和仪表盘，不能管渠道。</div>
+        </div>
+        <div class="adv-card">
+          <div class="ac-title">多租户完全自定义</div>
+          <div class="ac-desc">每个代理商可以创建自己的角色，并自由组合权限。不再受限于固定等级数字，灵活适配不同业务场景。</div>
+        </div>
+        <div class="adv-card">
+          <div class="ac-title">前端动态渲染</div>
+          <div class="ac-desc">登录时返回用户的权限列表 <code>["channel:read","user:write",...]</code>，前端根据实际权限渲染菜单和按钮，无需硬编码。</div>
+        </div>
+        <div class="adv-card">
+          <div class="ac-title">平滑迁移</div>
+          <div class="ac-desc">保留 <code>users.role</code> 字段做兼容，旧中间件逻辑不变。新接口用权限检查，逐步替换。无需一次性全量迁移。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- MODAL                                           -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle"></h2>
+      <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+/* ── Tab Switching ── */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ── Modal Details ── */
+const details = {
+  'cur-request': {
+    title: 'HTTP 请求入口',
+    html: `
+      <h3>请求路径</h3>
+      <p>所有 API 请求经过 Gin Router 分发，relay 相关请求进入 <code>/v1/*</code> 路由组。</p>
+      <h3>鉴权方式</h3>
+      <ul class="flow-list">
+        <li>Dashboard API：Session Cookie（JWT）</li>
+        <li>Relay API：Bearer Token（<code>sk-xxx</code>）</li>
+        <li>Admin API：Session + Role 检查</li>
+      </ul>
+    `
+  },
+  'cur-middleware': {
+    title: '中间件鉴权层 — 当前实现',
+    html: `
+      <h3>三个鉴权中间件</h3>
+      <ol class="algo-steps">
+        <li><span class="n">1</span><code>UserAuth()</code> — 要求 <code>role >= 1</code> (RoleCommonUser)</li>
+        <li><span class="n">2</span><code>AdminAuth()</code> — 要求 <code>role >= 10</code> (RoleAdminUser)</li>
+        <li><span class="n">3</span><code>RootAuth()</code> — 要求 <code>role >= 100</code> (RoleRootUser)</li>
+      </ol>
+      <h3>鉴权流程</h3>
+      <ol class="algo-steps">
+        <li><span class="n">❶</span>检查 Session 中的 user 信息</li>
+        <li><span class="n">❷</span>无 Session 则验证 Authorization Header 中的 Access Token</li>
+        <li><span class="n">❸</span>Admin+ 端点：每次请求从 DB 刷新 role/status（防止 Session 过期后权限未降级）</li>
+        <li><span class="n">❹</span>比较 <code>user.Role >= minRole</code></li>
+      </ol>
+      <h3>问题</h3>
+      <p>只能做"大于等于"比较，无法实现"拥有某个具体权限"的检查。例如 Sales(5) 自动包含 Common(1) 的所有权限，但无法排除特定权限。</p>
+    `
+  },
+  'cur-rolecheck': {
+    title: '核心判断逻辑 — role >= minRole',
+    html: `
+      <h3>代码实现</h3>
+      <p>位于 <code>middleware/auth.go</code>：</p>
+      <ol class="algo-steps">
+        <li><span class="n">1</span>获取 user.Role（整数）</li>
+        <li><span class="n">2</span>与中间件的 minRole 比较</li>
+        <li><span class="n">3</span><code>if role < minRole { return 403 }</code></li>
+      </ol>
+      <h3>隐含语义</h3>
+      <p><strong>等级越高 = 权限越大</strong>，这是严格的线性层次结构。Root(100) 自动拥有 Admin(10) 的所有权限，Admin(10) 自动拥有 Sales(5) 的所有权限。</p>
+      <h3>无法实现的场景</h3>
+      <ul class="flow-list">
+        <li>互斥权限：A 角色能管渠道不能管用户，B 角色相反</li>
+        <li>部分授权：Admin 只授予渠道只读权限</li>
+        <li>自定义组合：代理商的"运营"角色只需日志 + 仪表盘</li>
+      </ul>
+    `
+  },
+  'cur-roles': {
+    title: '固定角色等级层次',
+    html: `
+      <h3>五个固定等级</h3>
+      <table class="compare-table">
+        <tr><th>等级</th><th>角色</th><th>中间件阈值</th></tr>
+        <tr><td>0</td><td>Guest</td><td>无（不需要登录）</td></tr>
+        <tr><td>1</td><td>Common User</td><td>UserAuth()</td></tr>
+        <tr><td>5</td><td>Sales</td><td>UserAuth()（同 Common）</td></tr>
+        <tr><td>10</td><td>Admin</td><td>AdminAuth()</td></tr>
+        <tr><td>100</td><td>Root</td><td>RootAuth()</td></tr>
+      </table>
+      <h3>自定义角色的困境</h3>
+      <p>roles 表支持自定义角色，但 level 必须是一个整数。中间件只检查 <code>>= 0/1/10/100</code> 这几个阈值。</p>
+      <p>创建一个 level=3 的"审计员"角色，在中间件看来跟 level=1 的 Common User 没有区别 — 因为下一个检查阈值是 10(Admin)。</p>
+    `
+  },
+  'cur-database': {
+    title: 'users 表 — 角色存储',
+    html: `
+      <h3>双字段冗余</h3>
+      <dl class="kv-grid">
+        <dt>role</dt><dd>整数等级（0/1/5/10/100），<strong>实际用于权限判断</strong></dd>
+        <dt>role_id</dt><dd>FK 指向 roles 表，<strong>仅用于显示角色名称</strong></dd>
+      </dl>
+      <h3>设置角色的流程</h3>
+      <ol class="algo-steps">
+        <li><span class="n">1</span>调用 <code>PUT /api/user/:id/role</code>，传入 role_id</li>
+        <li><span class="n">2</span>查找 roles 表获取 level</li>
+        <li><span class="n">3</span>同时更新 <code>users.role = level</code> 和 <code>users.role_id = id</code></li>
+      </ol>
+      <p>本质上 role_id 只是 role(level) 的间接引用，最终权限判断仍然只看 <code>users.role</code> 这个整数。</p>
+    `
+  },
+  'cur-roles-table': {
+    title: 'roles 表 — 角色定义',
+    html: `
+      <h3>表结构</h3>
+      <dl class="kv-grid">
+        <dt>id</dt><dd>主键</dd>
+        <dt>agent_id</dt><dd>租户隔离（0=全局，>0=代理商专属）</dd>
+        <dt>code</dt><dd>角色代码（admin, sales 等）</dd>
+        <dt>name</dt><dd>显示名称</dd>
+        <dt>level</dt><dd><strong class="old">绑定到固定等级</strong></dd>
+        <dt>is_system</dt><dd>系统角色不可删除</dd>
+      </dl>
+      <h3>约束</h3>
+      <p>唯一索引 <code>(agent_id, level)</code>：同一租户下每个等级只能有一个角色。这意味着自定义角色必须使用不同的 level 值，但这些 level 值在中间件中没有对应的检查点。</p>
+    `
+  },
+  'cur-permission-calc': {
+    title: '权限计算 — calculateUserPermissions()',
+    html: `
+      <h3>实现位置</h3>
+      <p><code>controller/user.go</code> 中的 <code>calculateUserPermissions(userRole int)</code></p>
+      <h3>逻辑</h3>
+      <ol class="algo-steps">
+        <li><span class="n">≥100</span>Root：sidebar_settings=false（自动配置），所有模块开放</li>
+        <li><span class="n">≥10</span>Admin：可自定义侧栏，但 setting 模块关闭</li>
+        <li><span class="n">&lt;10</span>Common：可自定义侧栏，整个 admin 区域关闭</li>
+      </ol>
+      <h3>问题</h3>
+      <p>前端权限是从等级数字<strong>推断</strong>出来的，而非从实际授权的权限列表获取。如果新增一个模块，必须修改这个函数的代码。</p>
+    `
+  },
+  'cur-no-permission-table': {
+    title: '缺失：独立权限表',
+    html: `
+      <h3>当前状态</h3>
+      <p>系统没有独立的 permissions 表。权限与角色等级完全绑定：</p>
+      <ul class="flow-list">
+        <li><code>role >= 1</code> → 可以使用 API</li>
+        <li><code>role >= 10</code> → 可以管理用户、渠道、模型</li>
+        <li><code>role >= 100</code> → 可以修改系统设置</li>
+      </ul>
+      <h3>SaaS 场景下的问题</h3>
+      <p>代理商需要为自己的团队定义不同角色：运营只看日志、财务只看账单、技术负责人管渠道。但当前架构无法实现这种灵活的权限组合。</p>
+      <p>所有 <code>AdminAuth()</code> 保护的接口，Admin 角色要么全部能访问，要么全部不能访问，无法部分授权。</p>
+    `
+  },
+
+  // ── Proposed architecture details ──
+  'new-request': {
+    title: 'HTTP 请求入口（不变）',
+    html: `
+      <p>请求入口保持不变，仍然通过 Gin Router 分发。变化在中间件层。</p>
+    `
+  },
+  'new-middleware': {
+    title: '增强的中间件鉴权层',
+    html: `
+      <h3>新增中间件</h3>
+      <ol class="algo-steps">
+        <li><span class="n">1</span><code>RequireAuth()</code> — 替代 UserAuth()，仅验证登录状态</li>
+        <li><span class="n">2</span><code>RequirePermission("code")</code> — 新增，检查用户是否拥有指定权限</li>
+      </ol>
+      <h3>兼容策略</h3>
+      <p>旧的 <code>UserAuth()</code>、<code>AdminAuth()</code>、<code>RootAuth()</code> 保留不变，保证兼容。新接口使用 <code>RequirePermission()</code>。</p>
+      <h3>路由示例</h3>
+      <ol class="algo-steps">
+        <li><span class="n">旧</span><code>adminRoute.Use(AdminAuth())</code> — 所有 Admin 接口</li>
+        <li><span class="n">新</span><code>channelRoute.Use(RequirePermission("channel:write"))</code> — 精确到模块</li>
+      </ol>
+    `
+  },
+  'new-permcheck': {
+    title: '权限检查引擎',
+    html: `
+      <h3>核心函数</h3>
+      <p><code>HasPermission(userId int, permCode string) bool</code></p>
+      <h3>检查流程</h3>
+      <ol class="algo-steps">
+        <li><span class="n">1</span>从缓存获取用户的权限集合 <code>Set&lt;string&gt;</code></li>
+        <li><span class="n">2</span>缓存未命中：查询 <code>users → roles → role_permissions → permissions</code></li>
+        <li><span class="n">3</span>将权限 code 列表缓存（Redis + 内存，TTL 5min）</li>
+        <li><span class="n">4</span>检查 permCode 是否在集合中</li>
+      </ol>
+      <h3>通配符支持</h3>
+      <p>可选：支持 <code>*</code> 通配符。Root 角色拥有 <code>*</code> 权限，匹配所有权限代码。</p>
+    `
+  },
+  'new-roles-table': {
+    title: 'roles 表 — 改造后',
+    html: `
+      <h3>主要变化</h3>
+      <table class="compare-table">
+        <tr><th>字段</th><th class="old">当前</th><th class="new">改造后</th></tr>
+        <tr><td>level</td><td class="old">int（固定等级）</td><td class="new">移除</td></tr>
+        <tr><td>is_system</td><td>bool</td><td>保留，系统角色不可删除</td></tr>
+        <tr><td>其他</td><td>—</td><td>不变</td></tr>
+      </table>
+      <h3>系统预置角色</h3>
+      <p>仍然预置 5 个系统角色（guest/user/sales/admin/root），但权限通过 role_permissions 关联，而非 level 数字。</p>
+    `
+  },
+  'new-permissions-table': {
+    title: 'permissions 表 — 新增',
+    html: `
+      <h3>设计理念</h3>
+      <p>采用 <code>module:action</code> 二段式命名：</p>
+      <dl class="kv-grid">
+        <dt>module</dt><dd>功能模块（channel, user, token, model, log, setting, dashboard, sales, role）</dd>
+        <dt>action</dt><dd>操作类型（read, write, manage, role）</dd>
+      </dl>
+      <h3>预置权限数量</h3>
+      <p>初始约 16 个权限，覆盖所有核心模块。代理商<strong>不能</strong>自定义权限（权限是系统级的），但可以自由组合权限到角色。</p>
+      <h3>扩展</h3>
+      <p>新增功能模块时，只需添加新的权限记录，无需修改中间件代码。</p>
+    `
+  },
+  'new-role-perms': {
+    title: 'role_permissions — 关联表',
+    html: `
+      <h3>结构</h3>
+      <p>经典的多对多关联表，连接 roles 和 permissions：</p>
+      <dl class="kv-grid">
+        <dt>role_id</dt><dd>FK → roles.id</dd>
+        <dt>permission_id</dt><dd>FK → permissions.id</dd>
+      </dl>
+      <h3>唯一约束</h3>
+      <p><code>UNIQUE(role_id, permission_id)</code> 防止重复授权。</p>
+      <h3>操作</h3>
+      <ul class="flow-list">
+        <li>给角色授权：INSERT INTO role_permissions</li>
+        <li>撤销权限：DELETE FROM role_permissions</li>
+        <li>查询角色权限：JOIN permissions ON role_permissions</li>
+      </ul>
+    `
+  },
+  'new-users-table': {
+    title: 'users 表 — 简化',
+    html: `
+      <h3>变化</h3>
+      <table class="compare-table">
+        <tr><th>字段</th><th class="old">当前</th><th class="new">改造后</th></tr>
+        <tr><td>role</td><td class="old">int（实际用于鉴权）</td><td class="new">保留但仅用于兼容</td></tr>
+        <tr><td>role_id</td><td>int（仅显示用途）</td><td class="new">成为实际鉴权的依据</td></tr>
+      </table>
+      <h3>迁移策略</h3>
+      <p>过渡期两个字段并存。新接口用 role_id → 权限检查，旧接口仍用 role 整数比较。最终完全迁移后可移除 role 字段。</p>
+    `
+  },
+  'new-resolution': {
+    title: '权限解析流程',
+    html: `
+      <h3>完整查询路径</h3>
+      <ol class="algo-steps">
+        <li><span class="n">1</span><code>users.role_id</code> → 获取用户的角色 ID</li>
+        <li><span class="n">2</span><code>role_permissions WHERE role_id = ?</code> → 获取角色关联的权限 ID 列表</li>
+        <li><span class="n">3</span><code>permissions WHERE id IN (?)</code> → 获取权限 code 列表</li>
+        <li><span class="n">4</span>构建 <code>Set&lt;string&gt;</code> 缓存到 Redis + 内存</li>
+      </ol>
+      <h3>缓存策略</h3>
+      <dl class="kv-grid">
+        <dt>L1 缓存</dt><dd>进程内存（sync.Map），TTL 5 分钟</dd>
+        <dt>L2 缓存</dt><dd>Redis Hash，TTL 10 分钟</dd>
+        <dt>失效</dt><dd>修改角色权限时主动清除对应缓存</dd>
+      </dl>
+      <h3>SQL 示例</h3>
+      <p><code>SELECT p.code FROM permissions p JOIN role_permissions rp ON p.id = rp.permission_id WHERE rp.role_id = ?</code></p>
+    `
+  },
+  'new-benefits': {
+    title: '新方案核心优势',
+    html: `
+      <h3>对比</h3>
+      <table class="compare-table">
+        <tr><th>能力</th><th class="old">当前</th><th class="new">新方案</th></tr>
+        <tr><td>权限粒度</td><td class="old">3 个等级（User/Admin/Root）</td><td class="new">16+ 个独立权限</td></tr>
+        <tr><td>自定义角色</td><td class="old">仅能设置 level 数字</td><td class="new">自由组合权限</td></tr>
+        <tr><td>互斥权限</td><td class="old">不支持</td><td class="new">支持（不同角色不同权限组合）</td></tr>
+        <tr><td>前端控制</td><td class="old">按等级推算</td><td class="new">按权限列表渲染</td></tr>
+        <tr><td>新模块接入</td><td class="old">改中间件代码</td><td class="new">添加权限记录</td></tr>
+        <tr><td>多租户</td><td class="old">受限于固定等级</td><td class="new">每个租户独立角色+权限</td></tr>
+      </table>
+    `
+  }
+};
+
+/* ── Modal Logic ── */
+const overlay = document.getElementById('modalOverlay');
+const modalTitle = document.getElementById('modalTitle');
+const modalBody = document.getElementById('modalBody');
+
+document.addEventListener('click', (e) => {
+  // Check for SVG node click
+  const nodeBox = e.target.closest('.node-box');
+  if (nodeBox) {
+    const key = nodeBox.dataset.detail;
+    if (key && details[key]) {
+      modalTitle.textContent = details[key].title;
+      modalBody.innerHTML = details[key].html;
+      overlay.classList.add('open');
+    }
+    return;
+  }
+  // Check for detail button click
+  const btn = e.target.closest('.detail-btn');
+  if (btn) {
+    const key = btn.dataset.detail;
+    if (key && details[key]) {
+      modalTitle.textContent = details[key].title;
+      modalBody.innerHTML = details[key].html;
+      overlay.classList.add('open');
+    }
+    return;
+  }
+  // Close modal
+  if (e.target === overlay || e.target.closest('.modal-close')) {
+    overlay.classList.remove('open');
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') overlay.classList.remove('open');
+});
+</script>
+</body>
+</html>
