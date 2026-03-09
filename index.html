@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI API Gateway 请求交互图</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+:root {
+  --bg: #ffffff;
+  --surface: #f7f8fa;
+  --surface2: #eef0f4;
+  --border: #d8dbe3;
+  --text: #1a1d26;
+  --text2: #555a6e;
+  --text3: #8b90a0;
+  --blue: #2b5cd9;
+  --cyan: #0c7bb3;
+  --orange: #c06c00;
+  --red: #d42f3f;
+  --green: #158a3e;
+  --purple: #6b4faa;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Noto Sans SC', sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:var(--sans); background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
+
+/* ── Layout ── */
+.page { max-width:900px; margin:0 auto; padding:40px 20px 80px; }
+.title { text-align:center; margin-bottom:36px; }
+.title h1 { font-size:22px; font-weight:700; letter-spacing:-0.5px; }
+.title p { font-size:12px; color:var(--text3); font-family:var(--mono); margin-top:6px; }
+
+/* ── Sequence Diagram ── */
+.seq { position:relative; }
+
+/* Lanes (vertical columns) */
+.lanes { display:flex; justify-content:space-between; margin-bottom:4px; position:sticky; top:0; z-index:10; background:var(--bg); padding:8px 0 12px; }
+.lane-head { width:100px; text-align:center; flex-shrink:0; }
+.lane-head .lh-box {
+  display:inline-block; padding:6px 4px 5px; border-radius:6px;
+  border:1.5px solid var(--border); background:var(--surface); min-width:88px;
+}
+.lane-head .lh-name { font-size:12px; font-weight:600; }
+.lane-head .lh-sub { font-size:9px; font-family:var(--mono); color:var(--text3); margin-top:1px; }
+
+/* Lifelines */
+.body { position:relative; }
+.lifelines {
+  position:absolute; top:0; bottom:0; left:0; right:0;
+  display:flex; justify-content:space-between; pointer-events:none; z-index:0;
+}
+.ll { width:100px; display:flex; justify-content:center; flex-shrink:0; }
+.ll i { width:1px; background:var(--border); opacity:.5; }
+
+/* Rows */
+.rows { position:relative; z-index:1; display:flex; flex-direction:column; gap:2px; }
+
+/* ── Step Row ── */
+.step {
+  position:relative; display:flex; align-items:center;
+  min-height:40px; padding:6px 0;
+}
+.step .arrow-wrap {
+  position:absolute; display:flex; align-items:center;
+}
+.step .arrow-line {
+  flex:1; height:1.5px; background:var(--blue);
+}
+.step .arrow-line.dashed { background:none; border-top:1.5px dashed var(--text3); }
+.step .arrow-line.ret { background:none; border-top:1.5px dashed var(--green); }
+.step .arrow-line.err { background:none; border-top:1.5px dashed var(--red); }
+
+.step .arrow-head { width:0; height:0; border-style:solid; flex-shrink:0; }
+.step .arrow-head.r { border-width:4px 0 4px 7px; border-color:transparent transparent transparent var(--blue); }
+.step .arrow-head.l { border-width:4px 7px 4px 0; border-color:transparent var(--text3) transparent transparent; }
+.step .arrow-head.l-g { border-width:4px 7px 4px 0; border-color:transparent var(--green) transparent transparent; }
+.step .arrow-head.r-r { border-width:4px 0 4px 7px; border-color:transparent transparent transparent var(--red); }
+
+.step .label {
+  position:absolute; top:-2px; font-size:11px; line-height:1.2;
+  padding:2px 8px; border-radius:3px; white-space:nowrap; z-index:2;
+  background:var(--bg);
+}
+.step .label code {
+  font-family:var(--mono); font-size:10px; font-weight:600;
+  color:var(--cyan); padding:1px 4px; border-radius:3px;
+  background:rgba(12,123,179,.1);
+}
+
+/* ── Clickable detail badge ── */
+.detail-btn {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:2px 8px 2px 6px; border-radius:10px; font-size:10px;
+  background:rgba(43,92,217,.1); color:var(--blue);
+  border:1px solid rgba(43,92,217,.25); cursor:pointer;
+  transition:all .15s; margin-left:6px; vertical-align:middle;
+  font-family:var(--sans);
+}
+.detail-btn:hover { background:rgba(43,92,217,.18); border-color:var(--blue); }
+.detail-btn svg { width:10px; height:10px; fill:currentColor; }
+
+.detail-btn.cyan { background:rgba(12,123,179,.1); color:var(--cyan); border-color:rgba(12,123,179,.25); }
+.detail-btn.cyan:hover { background:rgba(12,123,179,.18); border-color:var(--cyan); }
+.detail-btn.orange { background:rgba(192,108,0,.1); color:var(--orange); border-color:rgba(192,108,0,.25); }
+.detail-btn.orange:hover { background:rgba(192,108,0,.18); border-color:var(--orange); }
+.detail-btn.red { background:rgba(212,47,63,.1); color:var(--red); border-color:rgba(212,47,63,.25); }
+.detail-btn.red:hover { background:rgba(212,47,63,.18); border-color:var(--red); }
+
+/* ── Region Box ── */
+.region {
+  border-radius:8px; padding:4px 0; margin:6px 0;
+  position:relative;
+}
+.region.sched { background:rgba(12,123,179,.06); border:1px solid rgba(12,123,179,.2); }
+.region.retry { background:rgba(192,108,0,.06); border:1px solid rgba(192,108,0,.2); }
+.region.error { background:rgba(212,47,63,.06); border:1px solid rgba(212,47,63,.2); }
+
+.region-tag {
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:10px; font-weight:600; padding:3px 10px; border-radius:4px;
+  margin:6px 0 4px 12px;
+}
+.region-tag.cyan { background:rgba(12,123,179,.12); color:var(--cyan); }
+.region-tag.orange { background:rgba(192,108,0,.12); color:var(--orange); }
+.region-tag.red { background:rgba(212,47,63,.12); color:var(--red); }
+
+/* ── Spacer ── */
+.spacer { height:8px; }
+
+/* ── Modal ── */
+.modal-overlay {
+  display:none; position:fixed; inset:0; z-index:100;
+  background:rgba(0,0,0,.3); backdrop-filter:blur(4px);
+  justify-content:center; align-items:center; padding:20px;
+}
+.modal-overlay.open { display:flex; }
+
+.modal {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; max-width:600px; width:100%; max-height:80vh;
+  overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.15);
+}
+.modal-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 20px; border-bottom:1px solid var(--border);
+  position:sticky; top:0; background:var(--surface); z-index:1;
+}
+.modal-header h2 { font-size:15px; font-weight:600; }
+.modal-close {
+  width:28px; height:28px; border-radius:6px; border:none;
+  background:var(--surface2); color:var(--text2); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-size:16px;
+  transition:all .15s;
+}
+.modal-close:hover { background:var(--border); color:var(--text); }
+.modal-body { padding:16px 20px 20px; }
+
+/* Modal content styles */
+.modal-body h3 { font-size:13px; font-weight:600; color:var(--cyan); margin:14px 0 8px; }
+.modal-body h3:first-child { margin-top:0; }
+.modal-body p { font-size:12.5px; color:var(--text2); line-height:1.7; margin:4px 0; }
+.modal-body code {
+  font-family:var(--mono); font-size:11px; background:var(--surface2);
+  padding:1px 5px; border-radius:3px; color:var(--cyan);
+}
+.modal-body .flow-list { list-style:none; padding:0; margin:6px 0; }
+.modal-body .flow-list li {
+  font-size:12px; color:var(--text2); padding:5px 0 5px 20px;
+  position:relative; line-height:1.6;
+}
+.modal-body .flow-list li::before {
+  content:''; position:absolute; left:4px; top:11px;
+  width:6px; height:6px; border-radius:50%; background:var(--blue); opacity:.6;
+}
+.modal-body .algo-steps { list-style:none; padding:0; margin:8px 0; counter-reset:algo; }
+.modal-body .algo-steps li {
+  font-size:12px; color:var(--text); padding:6px 10px; margin:3px 0;
+  background:var(--surface2); border-radius:6px; border-left:3px solid var(--cyan);
+  line-height:1.5; display:flex; gap:8px;
+}
+.modal-body .algo-steps li .n {
+  font-weight:700; color:var(--cyan); flex-shrink:0; font-family:var(--mono); font-size:11px;
+  min-width:16px;
+}
+.modal-body .kv-grid {
+  display:grid; grid-template-columns:auto 1fr; gap:4px 12px;
+  font-size:12px; margin:8px 0;
+}
+.modal-body .kv-grid dt { color:var(--text3); font-family:var(--mono); font-size:11px; }
+.modal-body .kv-grid dd { color:var(--text2); }
+
+.modal-body .mode-card {
+  display:flex; gap:10px; padding:10px; background:var(--surface2);
+  border-radius:6px; margin:6px 0; align-items:flex-start;
+}
+.modal-body .mode-badge {
+  font-family:var(--mono); font-size:10px; font-weight:600;
+  padding:2px 8px; border-radius:4px; flex-shrink:0;
+}
+.modal-body .mode-badge.random { background:rgba(107,79,170,.12); color:var(--purple); }
+.modal-body .mode-badge.polling { background:rgba(21,138,62,.1); color:var(--green); }
+.modal-body .mode-desc { font-size:12px; color:var(--text2); line-height:1.5; }
+
+/* ── Legend ── */
+.legend {
+  display:flex; gap:20px; justify-content:center; flex-wrap:wrap;
+  margin-top:28px; padding-top:20px; border-top:1px solid var(--border);
+}
+.legend-item { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text3); }
+.legend-item i { width:20px; height:0; display:block; }
+.legend-item i.solid { border-top:2px solid var(--blue); }
+.legend-item i.dash { border-top:2px dashed var(--text3); }
+.legend-item i.ret { border-top:2px dashed var(--green); }
+.legend-item i.err { border-top:2px dashed var(--red); }
+
+/* Tip */
+.tip { text-align:center; margin-top:16px; font-size:11px; color:var(--text3); }
+.tip span { color:var(--blue); }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="title">
+    <h1>AI API Gateway 请求处理交互图</h1>
+    <p>anyfast-partner-hub &middot; click nodes for details</p>
+  </div>
+
+  <div class="tip">点击 <span>详情</span> 按钮查看每个步骤的内部流程</div>
+
+  <div class="seq">
+    <!-- Lane Headers -->
+    <div class="lanes" id="lanes">
+      <div class="lane-head"><div class="lh-box"><div class="lh-name">用户</div><div class="lh-sub">User</div></div></div>
+      <div class="lane-head"><div class="lh-box"><div class="lh-name">路由</div><div class="lh-sub">Router</div></div></div>
+      <div class="lane-head"><div class="lh-box"><div class="lh-name">中间件</div><div class="lh-sub">Middleware</div></div></div>
+      <div class="lane-head"><div class="lh-box"><div class="lh-name">控制器</div><div class="lh-sub">Controller</div></div></div>
+      <div class="lane-head"><div class="lh-box"><div class="lh-name">服务层</div><div class="lh-sub">Service</div></div></div>
+      <div class="lane-head"><div class="lh-box"><div class="lh-name">适配器</div><div class="lh-sub">Adapter</div></div></div>
+      <div class="lane-head"><div class="lh-box"><div class="lh-name">上游</div><div class="lh-sub">Provider</div></div></div>
+    </div>
+
+    <!-- Body with lifelines + rows -->
+    <div class="body" id="body">
+      <div class="lifelines" id="lifelines"></div>
+      <div class="rows" id="rows"></div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><i class="solid"></i>请求</div>
+    <div class="legend-item"><i class="dash"></i>返回</div>
+    <div class="legend-item"><i class="ret"></i>成功</div>
+    <div class="legend-item"><i class="err"></i>错误</div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle"></h2>
+      <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+/* ────────────────────────────────────────
+   CONFIG
+   ──────────────────────────────────────── */
+// Lane indices: 0=User 1=Router 2=Middleware 3=Controller 4=Service 5=Adapter 6=Upstream
+const LANES = 7;
+
+// Detail content for modals
+const details = {
+  middleware: {
+    title: '中间件链 — 详细流程',
+    html: `
+      <h3>执行顺序</h3>
+      <ol class="algo-steps">
+        <li><span class="n">1</span>CORS 跨域处理</li>
+        <li><span class="n">2</span><code>DecompressRequestMiddleware()</code> 解压 gzip/deflate 请求体</li>
+        <li><span class="n">3</span><code>BodyStorageCleanup()</code> 清理上次请求体缓存</li>
+        <li><span class="n">4</span><code>StatsMiddleware()</code> 请求统计采集</li>
+        <li><span class="n">5</span><code>SystemPerformanceCheck()</code> 系统健康检查</li>
+      </ol>
+    `
+  },
+  auth: {
+    title: 'Token 认证 — 详细流程',
+    html: `
+      <h3>认证步骤</h3>
+      <ol class="algo-steps">
+        <li><span class="n">1</span>从 <code>Authorization</code> / <code>x-api-key</code> / <code>x-goog-api-key</code> 提取 Token</li>
+        <li><span class="n">2</span>解析格式：<code>sk-{tokenKey}-{channelId}</code>（channelId 可选，仅管理员）</li>
+        <li><span class="n">3</span><code>model.ValidateUserToken(key)</code> 验证 Token 存在性、权限、额度</li>
+        <li><span class="n">4</span>检查 IP 限制（如已配置）</li>
+        <li><span class="n">5</span>获取用户缓存，检查用户是否启用</li>
+        <li><span class="n">6</span><code>userCache.WriteContext(c)</code> 写入用户上下文</li>
+      </ol>
+      <h3>设置的上下文</h3>
+      <dl class="kv-grid">
+        <dt>group</dt><dd>用户/Token 所属分组</dd>
+        <dt>quota</dt><dd>用户剩余额度</dd>
+        <dt>token_id</dt><dd>Token 标识</dd>
+        <dt>model_limits</dt><dd>Token 允许的模型列表（如启用）</dd>
+        <dt>cross_group</dt><dd>是否允许跨组重试</dd>
+      </dl>
+    `
+  },
+  schedule: {
+    title: '渠道调度策略 — 核心算法',
+    html: `
+      <h3>第一步：亲和性检查</h3>
+      <p>调用 <code>GetPreferredChannelByAffinity()</code> 查找上次成功使用的渠道。若可用且已启用，直接复用。</p>
+
+      <h3>第二步：加权随机选择</h3>
+      <p>若无亲和渠道，调用 <code>CacheGetRandomSatisfiedChannel()</code>：</p>
+      <ol class="algo-steps">
+        <li><span class="n">❶</span>从缓存获取 <code>(group, model)</code> 对应的所有已启用渠道</li>
+        <li><span class="n">❷</span>按优先级 (priority) 降序排列，提取唯一优先级层级列表</li>
+        <li><span class="n">❸</span><code>retry</code> 参数作为层级索引 — retry=0 取最高优先级层</li>
+        <li><span class="n">❹</span>筛选出当前优先级层级的所有渠道</li>
+        <li><span class="n">❺</span>在同层级内，按 <code>weight</code> 值进行加权随机选择（支持平滑因子）</li>
+        <li><span class="n">❻</span>若 TokenGroup="auto" 且当前组穷尽，自动切换到下一个组</li>
+      </ol>
+
+      <h3>第三步：设置渠道上下文</h3>
+      <p><code>SetupContextForSelectedChannel()</code> 将以下信息写入请求上下文：</p>
+      <dl class="kv-grid">
+        <dt>channel_key</dt><dd>渠道 API Key</dd>
+        <dt>base_url</dt><dd>自定义上游地址（如有）</dd>
+        <dt>model_mapping</dt><dd>模型名映射规则</dd>
+        <dt>param_override</dt><dd>请求参数覆盖</dd>
+        <dt>header_override</dt><dd>请求头覆盖</dd>
+      </dl>
+
+      <h3>多 Key 管理</h3>
+      <div class="mode-card">
+        <span class="mode-badge random">RANDOM</span>
+        <span class="mode-desc"><strong>随机模式</strong> — 从所有已启用 Key 中随机选取一个</span>
+      </div>
+      <div class="mode-card">
+        <span class="mode-badge polling">POLLING</span>
+        <span class="mode-desc"><strong>轮询模式</strong> — 维护全局索引，依次使用每个 Key</span>
+      </div>
+      <p>每个 Key 独立追踪状态，失败 Key 自动跳过。</p>
+    `
+  },
+  relay: {
+    title: '控制器 Relay — 详细流程',
+    html: `
+      <h3>处理步骤</h3>
+      <ol class="algo-steps">
+        <li><span class="n">1</span><code>GetAndValidateRequest()</code> 解析并验证请求体</li>
+        <li><span class="n">2</span><code>GenRelayInfo()</code> 生成中继信息（模型名、流式标志、格式等）</li>
+        <li><span class="n">3</span><code>EstimateRequestToken()</code> 估算输入 Token 数</li>
+        <li><span class="n">4</span>敏感词检查（如启用）</li>
+        <li><span class="n">5</span><code>ModelPriceHelper()</code> 计算定价</li>
+        <li><span class="n">6</span><code>PreConsumeBilling()</code> 预扣费</li>
+      </ol>
+      <h3>格式处理器</h3>
+      <p>根据请求格式选择不同的处理器：</p>
+      <dl class="kv-grid">
+        <dt>OpenAI</dt><dd><code>TextHelper()</code></dd>
+        <dt>Claude</dt><dd><code>ClaudeHelper()</code></dd>
+        <dt>Gemini</dt><dd><code>GeminiHelper()</code></dd>
+        <dt>Audio</dt><dd><code>AudioHelper()</code></dd>
+        <dt>Image</dt><dd><code>ImageHelper()</code></dd>
+        <dt>Embedding</dt><dd><code>EmbeddingHelper()</code></dd>
+        <dt>Rerank</dt><dd><code>RerankHelper()</code></dd>
+      </dl>
+    `
+  },
+  retry: {
+    title: '重试循环 — 详细机制',
+    html: `
+      <h3>重试流程</h3>
+      <ol class="algo-steps">
+        <li><span class="n">1</span>首次请求使用 Distribute 中间件选定的渠道</li>
+        <li><span class="n">2</span>失败后 <code>retry++</code>，调用 <code>CacheGetRandomSatisfiedChannel(retry)</code></li>
+        <li><span class="n">3</span>retry 值递增 → 自动选择下一优先级层级的渠道</li>
+        <li><span class="n">4</span>当所有优先级层穷尽后，clamp 到最低优先级层继续随机选择</li>
+        <li><span class="n">5</span>若 TokenGroup="auto"，穷尽当前组后切换到下一个组</li>
+      </ol>
+      <h3>不可重试的情况</h3>
+      <ul class="flow-list">
+        <li>请求参数无效 (400 Bad Request)</li>
+        <li>渠道亲和性失败</li>
+        <li>设置了 skip-retry 标志的渠道</li>
+        <li>上下文已取消 (客户端断开)</li>
+      </ul>
+      <h3>渠道自动封禁</h3>
+      <p>失败的渠道会经过 <code>ProcessChannelError()</code> 处理，根据错误类型可能被自动禁用。</p>
+    `
+  },
+  adapter: {
+    title: '适配器 — 请求转换流水线',
+    html: `
+      <h3>Adaptor 接口</h3>
+      <p>每个上游供应商实现统一的适配器接口：</p>
+      <ol class="algo-steps">
+        <li><span class="n">1</span><code>Init()</code> 初始化渠道元数据</li>
+        <li><span class="n">2</span><code>GetRequestURL()</code> 构建上游 API 地址</li>
+        <li><span class="n">3</span><code>SetupRequestHeader()</code> 设置认证头等</li>
+        <li><span class="n">4</span><code>ConvertRequest()</code> 将请求转换为目标格式</li>
+        <li><span class="n">5</span>应用 ModelMapping、ParamOverride、HeaderOverride</li>
+        <li><span class="n">6</span><code>DoRequest()</code> 发送 HTTP 请求</li>
+        <li><span class="n">7</span><code>DoResponse()</code> 解析响应，提取 usage</li>
+      </ol>
+      <h3>支持的供应商 (40+)</h3>
+      <p>OpenAI, Claude, Gemini, Azure, AWS Bedrock, DeepSeek, Zhipu, Qwen, Doubao, Minimax, Moonshot, Yi, Baichuan, Cohere, Mistral, Groq, Cloudflare, Together AI, Perplexity, xAI 等</p>
+    `
+  },
+  billing: {
+    title: '计费结算 — 详细流程',
+    html: `
+      <h3>预扣费</h3>
+      <p>请求前根据估算 Token 数 × 模型倍率 预扣额度，防止超额使用。</p>
+      <h3>结算</h3>
+      <ol class="algo-steps">
+        <li><span class="n">1</span>从上游响应中提取实际 <code>prompt_tokens</code> + <code>completion_tokens</code></li>
+        <li><span class="n">2</span><code>PostConsumeBilling()</code> 计算实际消耗</li>
+        <li><span class="n">3</span>与预扣额度对比：多退少补</li>
+      </ol>
+      <h3>异常处理</h3>
+      <p>若所有重试均失败，调用 <code>RefundBilling()</code> 全额退还预扣额度。</p>
+    `
+  },
+  error: {
+    title: '错误处理路径',
+    html: `
+      <h3>错误处理流程</h3>
+      <ol class="algo-steps">
+        <li><span class="n">1</span>标准化错误格式 (统一 OpenAI error 格式)</li>
+        <li><span class="n">2</span>记录错误日志（含渠道信息）</li>
+        <li><span class="n">3</span>判断是否可重试 → 可重试则进入下一次循环</li>
+        <li><span class="n">4</span><code>ProcessChannelError()</code> 处理渠道状态</li>
+        <li><span class="n">5</span>所有重试失败后：退还预扣额度</li>
+        <li><span class="n">6</span>返回最后一次的错误信息给用户</li>
+      </ol>
+    `
+  }
+};
+
+/* ────────────────────────────────────────
+   RENDERING
+   ──────────────────────────────────────── */
+const rowsEl = document.getElementById('rows');
+const lifelinesEl = document.getElementById('lifelines');
+
+// Build lifelines
+for (let i = 0; i < LANES; i++) {
+  const d = document.createElement('div');
+  d.className = 'll';
+  d.innerHTML = '<i></i>';
+  lifelinesEl.appendChild(d);
+}
+
+// Helper: get lane center % position
+function laneCenter(i) {
+  const w = 100 / LANES;
+  return w * i + w / 2;
+}
+
+// Build arrow row
+function addStep(from, to, text, opts = {}) {
+  const row = document.createElement('div');
+  row.className = 'step';
+
+  const leftLane = Math.min(from, to);
+  const rightLane = Math.max(from, to);
+  const goRight = to > from;
+  const leftPct = laneCenter(leftLane);
+  const rightPct = laneCenter(rightLane);
+
+  // Arrow
+  const wrap = document.createElement('div');
+  wrap.className = 'arrow-wrap';
+  wrap.style.left = leftPct + '%';
+  wrap.style.right = (100 - rightPct) + '%';
+
+  let lineClass = 'arrow-line';
+  if (opts.dashed) lineClass += ' dashed';
+  if (opts.ret) lineClass += ' ret';
+  if (opts.err) lineClass += ' err';
+
+  let headClass = 'arrow-head ';
+  if (opts.err) headClass += goRight ? 'r-r' : 'r-r';
+  else if (opts.ret) headClass += goRight ? 'r' : 'l-g';
+  else headClass += goRight ? 'r' : 'l';
+
+  if (goRight) {
+    wrap.innerHTML = `<div class="${lineClass}"></div><div class="${headClass}"></div>`;
+  } else {
+    wrap.innerHTML = `<div class="${headClass}"></div><div class="${lineClass}"></div>`;
+  }
+
+  row.appendChild(wrap);
+
+  // Label
+  const lbl = document.createElement('div');
+  lbl.className = 'label';
+  // Center label between from and to
+  const midPct = (leftPct + rightPct) / 2;
+  lbl.style.left = midPct + '%';
+  lbl.style.transform = 'translateX(-50%)';
+  lbl.innerHTML = text;
+  if (opts.detail) {
+    const cls = opts.detailClass || '';
+    lbl.innerHTML += ` <span class="detail-btn ${cls}" data-detail="${opts.detail}"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>详情</span>`;
+  }
+  row.appendChild(lbl);
+
+  rowsEl.appendChild(row);
+}
+
+function addSpacer() {
+  const s = document.createElement('div');
+  s.className = 'spacer';
+  rowsEl.appendChild(s);
+}
+
+function addRegionStart(label, cls) {
+  const r = document.createElement('div');
+  r.className = `region ${cls}`;
+  r.id = `region-${cls}`;
+  const tag = document.createElement('div');
+  tag.className = `region-tag ${cls === 'sched' ? 'cyan' : cls === 'retry' ? 'orange' : 'red'}`;
+  tag.textContent = label;
+  r.appendChild(tag);
+  const inner = document.createElement('div');
+  inner.className = 'region-inner';
+  r.appendChild(inner);
+  rowsEl.appendChild(r);
+  return inner;
+}
+
+/* ────────────────────────────────────────
+   BUILD SEQUENCE
+   ──────────────────────────────────────── */
+// Lane: 0=User 1=Router 2=Middleware 3=Controller 4=Service 5=Adapter 6=Upstream
+
+// ① User → Router
+addStep(0, 1, '<code>POST /v1/chat/completions</code>');
+
+// ② Router → Middleware
+addStep(1, 2, '② 进入中间件链', { detail: 'middleware' });
+
+// ③ Middleware: TokenAuth
+addStep(2, 2, '③ <code>TokenAuth()</code> 认证', { detail: 'auth', detailClass: 'cyan' });
+
+// ④ Middleware: Distribute
+addSpacer();
+const schedInner = addRegionStart('渠道调度 Distribute()', 'sched');
+// Move following steps into region
+const savedTarget = rowsEl;
+// We'll just keep appending to rows, region is visual only via CSS later
+addStep(2, 4, '④ 查找渠道（亲和 → 加权随机）', { detail: 'schedule', detailClass: 'cyan' });
+addStep(4, 2, '返回选中渠道', { dashed: true, ret: true });
+// Close region visually - handled by DOM structure
+addSpacer();
+
+// ⑤ Middleware → Controller
+addStep(2, 3, '⑤ <code>Relay()</code> 进入控制器', { detail: 'relay' });
+
+// ⑥ Controller → Service: pre-billing
+addStep(3, 4, '⑥ 预扣费 + 估算Token', { detail: 'billing', detailClass: 'orange' });
+
+// Retry loop
+addSpacer();
+const retryInner = addRegionStart('重试循环 Retry Loop (max N)', 'retry');
+
+// ⑦ Controller → Adapter
+addStep(3, 5, '⑦ 请求转换 + 参数覆盖', { detail: 'adapter', detailClass: 'orange' });
+
+// ⑧ Adapter → Upstream
+addStep(5, 6, '⑧ <code>DoRequest()</code> HTTP请求');
+
+// ⑨ Upstream → Adapter
+addStep(6, 5, '⑨ 返回响应（流式/非流式）', { ret: true });
+
+// Retry note
+addStep(5, 3, '⑩ 解析响应 / 失败重试', { dashed: true, detail: 'retry', detailClass: 'orange' });
+
+addSpacer();
+
+// ⑪ Post-billing
+addStep(3, 4, '⑪ <code>PostConsumeBilling()</code> 结算', { detail: 'billing', detailClass: 'orange' });
+
+// ⑫ Return
+addStep(3, 2, '⑫ 返回响应', { dashed: true, ret: true });
+addStep(2, 0, '⑬ 返回最终响应（统一格式）', { ret: true });
+
+// Error path
+addSpacer();
+const errorInner = addRegionStart('错误路径 Error Path', 'error');
+addStep(3, 4, '退还预扣额度', { err: true, detail: 'error', detailClass: 'red' });
+addStep(3, 0, '返回错误 (4xx/5xx)', { err: true });
+
+/* ────────────────────────────────────────
+   MODAL
+   ──────────────────────────────────────── */
+const overlay = document.getElementById('modalOverlay');
+const modalTitle = document.getElementById('modalTitle');
+const modalBody = document.getElementById('modalBody');
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.detail-btn');
+  if (btn) {
+    const key = btn.dataset.detail;
+    const d = details[key];
+    if (d) {
+      modalTitle.textContent = d.title;
+      modalBody.innerHTML = d.html;
+      overlay.classList.add('open');
+    }
+    return;
+  }
+  if (e.target === overlay || e.target.closest('.modal-close')) {
+    overlay.classList.remove('open');
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') overlay.classList.remove('open');
+});
+
+/* ────────────────────────────────────────
+   WRAP REGIONS (move steps into region divs)
+   ──────────────────────────────────────── */
+// The region elements were inserted inline, so steps after them are siblings.
+// We need to move the right steps into each region.
+function wrapRegion(regionId, count) {
+  const region = document.getElementById(regionId);
+  if (!region) return;
+  const inner = region.querySelector('.region-inner');
+  let sibling = region.nextElementSibling;
+  for (let i = 0; i < count && sibling; i++) {
+    const next = sibling.nextElementSibling;
+    inner.appendChild(sibling);
+    sibling = next;
+  }
+}
+
+// sched region: 2 steps + 1 spacer after it
+wrapRegion('region-sched', 3);
+// retry region: 4 steps + 1 spacer
+wrapRegion('region-retry', 5);
+// error region: 2 steps
+wrapRegion('region-error', 2);
+</script>
+</body>
+</html>
