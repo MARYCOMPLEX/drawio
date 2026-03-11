@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RBAC 权限架构对比图</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+/* Using system fonts to avoid external dependencies */
 :root {
   --bg: #ffffff;
   --surface: #f7f8fa;
@@ -20,8 +20,8 @@
   --red: #d42f3f;
   --green: #158a3e;
   --purple: #6b4faa;
-  --mono: 'JetBrains Mono', monospace;
-  --sans: 'Noto Sans SC', sans-serif;
+  --mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', 'Droid Sans Mono', 'Source Code Pro', monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:var(--sans); background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
@@ -231,6 +231,7 @@ svg .mono { font-family:'JetBrains Mono', monospace; }
   <div class="tab-bar">
     <button class="tab-btn active" data-tab="current">当前架构 <span class="badge current">CURRENT</span></button>
     <button class="tab-btn" data-tab="proposed">新方案架构 <span class="badge proposed">PROPOSED</span></button>
+    <button class="tab-btn" data-tab="development">开发流程 <span class="badge" style="background:rgba(107,79,170,.1);color:#6b4faa">DEV</span></button>
   </div>
 
   <div class="tip">点击架构图中的 <span>节点</span> 或 <span>详情</span> 按钮查看详细信息</div>
@@ -515,8 +516,8 @@ svg .mono { font-family:'JetBrains Mono', monospace; }
           <!-- ═══ Layer 2: Middleware Auth ═══ -->
           <g class="node-box" data-detail="new-middleware">
             <rect x="260" y="118" width="520" height="56" rx="8" fill="rgba(43,92,217,.06)" stroke="rgba(43,92,217,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
-            <text x="520" y="140" text-anchor="middle" font-size="13" font-weight="600" fill="#2b5cd9">中间件鉴权层（增强）</text>
-            <text x="520" y="158" text-anchor="middle" font-size="10" fill="#555a6e" class="mono">RequireAuth() + RequirePermission("channel:write")</text>
+            <text x="520" y="140" text-anchor="middle" font-size="13" font-weight="600" fill="#2b5cd9">中间件鉴权层</text>
+            <text x="520" y="158" text-anchor="middle" font-size="10" fill="#555a6e" class="mono">UserAuth() + RequirePerm("tenant:channel:write")</text>
           </g>
 
           <line x1="520" y1="174" x2="520" y2="202" stroke="#2b5cd9" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
@@ -525,8 +526,8 @@ svg .mono { font-family:'JetBrains Mono', monospace; }
           <g class="node-box" data-detail="new-permcheck">
             <rect x="260" y="204" width="520" height="64" rx="8" fill="rgba(21,138,62,.06)" stroke="rgba(21,138,62,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
             <text x="520" y="228" text-anchor="middle" font-size="13" font-weight="600" fill="#158a3e">权限检查引擎</text>
-            <text x="520" y="248" text-anchor="middle" font-size="11" fill="#555a6e">user → role → role_permissions → permissions</text>
-            <text x="520" y="260" text-anchor="middle" font-size="9" fill="#8b90a0" class="mono">HasPermission(userId, "channel:write") → bool</text>
+            <text x="520" y="248" text-anchor="middle" font-size="11" fill="#555a6e">service.HasPermission(userId, agentId, code)</text>
+            <text x="520" y="260" text-anchor="middle" font-size="9" fill="#8b90a0" class="mono">支持通配符: platform:* 匹配所有, tenant:user:* 匹配前缀</text>
           </g>
 
           <!-- ═══ Layer 4: Three-Table Model ═══ -->
@@ -534,7 +535,7 @@ svg .mono { font-family:'JetBrains Mono', monospace; }
 
           <!-- Big container for the 3 tables -->
           <rect x="40" y="300" width="960" height="290" rx="10" fill="rgba(107,79,170,.03)" stroke="rgba(107,79,170,.15)" stroke-width="1" stroke-dasharray="4"/>
-          <text x="60" y="320" font-size="10" font-weight="600" fill="#6b4faa" class="mono">RBAC DATA MODEL (3 Tables + 1 Join Table)</text>
+          <text x="60" y="320" font-size="10" font-weight="600" fill="#6b4faa" class="mono">RBAC DATA MODEL (4 核心表)</text>
 
           <!-- Table: roles -->
           <g class="node-box" data-detail="new-roles-table">
@@ -547,8 +548,8 @@ svg .mono { font-family:'JetBrains Mono', monospace; }
             <text x="80" y="396" font-size="10" fill="#555a6e" class="mono">agent_id    int    (租户隔离)</text>
             <text x="80" y="410" font-size="10" fill="#555a6e" class="mono">code        string (唯一标识)</text>
             <text x="80" y="424" font-size="10" fill="#555a6e" class="mono">name        string (显示名称)</text>
-            <text x="80" y="438" font-size="10" fill="#158a3e" class="mono">is_system   bool   (系统角色)</text>
-            <text x="80" y="452" font-size="10" fill="#8b90a0" class="mono">// 移除 level 字段</text>
+            <text x="80" y="438" font-size="10" fill="#158a3e" class="mono">parent_id   int    (角色层级)</text>
+            <text x="80" y="452" font-size="10" fill="#8b90a0" class="mono">level       int    (兼容字段)</text>
           </g>
 
           <!-- Table: permissions -->
@@ -556,14 +557,14 @@ svg .mono { font-family:'JetBrains Mono', monospace; }
             <rect x="380" y="332" width="280" height="130" rx="8" fill="#fff" stroke="rgba(21,138,62,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
             <rect x="380" y="332" width="280" height="28" rx="8" fill="rgba(21,138,62,.08)"/>
             <rect x="380" y="352" width="280" height="8" rx="0" fill="rgba(21,138,62,.08)"/>
-            <text x="520" y="352" text-anchor="middle" font-size="12" font-weight="700" fill="#158a3e">permissions (新增)</text>
+            <text x="520" y="352" text-anchor="middle" font-size="12" font-weight="700" fill="#158a3e">permissions</text>
             <line x1="400" y1="364" x2="640" y2="364" stroke="#d8dbe3" stroke-width="0.8"/>
             <text x="400" y="382" font-size="10" fill="#555a6e" class="mono">id          int    (PK)</text>
-            <text x="400" y="396" font-size="10" fill="#555a6e" class="mono">code        string (channel:read)</text>
-            <text x="400" y="410" font-size="10" fill="#555a6e" class="mono">name        string (查看渠道)</text>
-            <text x="400" y="424" font-size="10" fill="#555a6e" class="mono">module      string (channel)</text>
-            <text x="400" y="438" font-size="10" fill="#555a6e" class="mono">action      string (read)</text>
-            <text x="400" y="452" font-size="10" fill="#555a6e" class="mono">description string</text>
+            <text x="400" y="396" font-size="10" fill="#555a6e" class="mono">agent_id    int    (租户隔离)</text>
+            <text x="400" y="410" font-size="10" fill="#555a6e" class="mono">code        string (tenant:user:view)</text>
+            <text x="400" y="424" font-size="10" fill="#555a6e" class="mono">name        string (查看用户)</text>
+            <text x="400" y="438" font-size="10" fill="#555a6e" class="mono">perm_type   int    (1目录 2菜单 3按钮 4接口)</text>
+            <text x="400" y="452" font-size="10" fill="#555a6e" class="mono">api_path    string (接口路径)</text>
           </g>
 
           <!-- Table: role_permissions (join) -->
@@ -573,9 +574,10 @@ svg .mono { font-family:'JetBrains Mono', monospace; }
             <rect x="700" y="352" width="280" height="8" rx="0" fill="rgba(12,123,179,.08)"/>
             <text x="840" y="352" text-anchor="middle" font-size="12" font-weight="700" fill="#0c7bb3">role_permissions</text>
             <line x1="720" y1="364" x2="960" y2="364" stroke="#d8dbe3" stroke-width="0.8"/>
-            <text x="720" y="382" font-size="10" fill="#555a6e" class="mono">role_id       int  (FK)</text>
-            <text x="720" y="396" font-size="10" fill="#555a6e" class="mono">permission_id int  (FK)</text>
-            <text x="720" y="410" font-size="10" fill="#555a6e" class="mono">unique(role_id, permission_id)</text>
+            <text x="720" y="382" font-size="10" fill="#555a6e" class="mono">agent_id      int  (租户隔离)</text>
+            <text x="720" y="396" font-size="10" fill="#555a6e" class="mono">role_id       int  (FK)</text>
+            <text x="720" y="410" font-size="10" fill="#555a6e" class="mono">permission_id int  (FK)</text>
+            <text x="720" y="424" font-size="10" fill="#8b90a0" class="mono">unique(agent_id, role_id, permission_id)</text>
           </g>
 
           <!-- FK Lines: roles → role_permissions (走底部绕行) -->
@@ -591,10 +593,10 @@ svg .mono { font-family:'JetBrains Mono', monospace; }
             <rect x="60" y="504" width="280" height="76" rx="8" fill="#fff" stroke="rgba(43,92,217,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
             <rect x="60" y="504" width="280" height="28" rx="8" fill="rgba(43,92,217,.08)"/>
             <rect x="60" y="524" width="280" height="8" rx="0" fill="rgba(43,92,217,.08)"/>
-            <text x="200" y="524" text-anchor="middle" font-size="12" font-weight="700" fill="#2b5cd9">users (简化)</text>
+            <text x="200" y="524" text-anchor="middle" font-size="12" font-weight="700" fill="#2b5cd9">users</text>
             <line x1="80" y1="536" x2="320" y2="536" stroke="#d8dbe3" stroke-width="0.8"/>
-            <text x="80" y="554" font-size="10" fill="#555a6e" class="mono">role_id     int    (FK → roles)</text>
-            <text x="80" y="568" font-size="10" fill="#8b90a0" class="mono">// 移除 role (int level) 字段</text>
+            <text x="80" y="554" font-size="10" fill="#555a6e" class="mono">role        int    (兼容字段，保留)</text>
+            <text x="80" y="568" font-size="10" fill="#158a3e" class="mono">role_id     int    (FK → roles，实际使用)</text>
           </g>
 
           <!-- FK: users → roles -->
@@ -744,6 +746,160 @@ svg .mono { font-family:'JetBrains Mono', monospace; }
       </div>
     </div>
   </div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- TAB 3: DEVELOPMENT WORKFLOW                      -->
+  <!-- ════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-development">
+
+    <!-- Section: Overview -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag purple">WORKFLOW</span>
+        <span class="section-title">引入 RBAC 后的开发流程</span>
+      </div>
+      <div class="diagram-wrap">
+        <svg width="1040" height="920" viewBox="0 0 1040 920">
+          <rect width="1040" height="920" fill="url(#grid)"/>
+
+          <text x="520" y="30" text-anchor="middle" font-size="11" fill="#8b90a0" class="mono">New API Development with RBAC · 新接口开发完整流程</text>
+
+          <!-- ═══ Backend Development ═══ -->
+          <rect x="40" y="50" width="480" height="420" rx="12" fill="rgba(43,92,217,.03)" stroke="rgba(43,92,217,.2)" stroke-width="2"/>
+          <text x="60" y="75" font-size="13" font-weight="700" fill="#2b5cd9">后端开发 (Backend)</text>
+
+          <!-- Step 1: Define Permission -->
+          <g class="node-box" data-detail="dev-define-permission">
+            <rect x="60" y="90" width="440" height="70" rx="8" fill="#fff" stroke="rgba(43,92,217,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="80" y="112" font-size="12" font-weight="600" fill="#2b5cd9">① 定义权限代码</text>
+            <text x="80" y="130" font-size="10" fill="#555a6e" class="mono">permissions 表新增记录</text>
+            <text x="80" y="145" font-size="9" fill="#8b90a0">code: "tenant:invoice:view"</text>
+          </g>
+
+          <!-- Step 2: Add to Seed -->
+          <g class="node-box" data-detail="dev-seed-permission">
+            <rect x="60" y="175" width="440" height="70" rx="8" fill="#fff" stroke="rgba(43,92,217,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="80" y="197" font-size="12" font-weight="600" fill="#2b5cd9">② 添加到权限种子数据</text>
+            <text x="80" y="215" font-size="10" fill="#555a6e" class="mono">model/permission_seed.go</text>
+            <text x="80" y="230" font-size="9" fill="#8b90a0">确保系统初始化时自动创建</text>
+          </g>
+
+          <!-- Step 3: Add Middleware -->
+          <g class="node-box" data-detail="dev-add-middleware">
+            <rect x="60" y="260" width="440" height="70" rx="8" fill="#fff" stroke="rgba(43,92,217,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="80" y="282" font-size="12" font-weight="600" fill="#2b5cd9">③ 路由添加权限中间件</text>
+            <text x="80" y="300" font-size="10" fill="#555a6e" class="mono">router/api-router.go</text>
+            <text x="80" y="315" font-size="9" fill="#8b90a0">invoiceRoute.GET("/", middleware.RequirePerm("tenant:invoice:view"), ...)</text>
+          </g>
+
+          <!-- Step 4: Implement Controller -->
+          <g class="node-box" data-detail="dev-controller">
+            <rect x="60" y="345" width="440" height="70" rx="8" fill="#fff" stroke="rgba(43,92,217,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="80" y="367" font-size="12" font-weight="600" fill="#2b5cd9">④ 实现业务逻辑</text>
+            <text x="80" y="385" font-size="10" fill="#555a6e" class="mono">controller/invoice.go</text>
+            <text x="80" y="400" font-size="9" fill="#8b90a0">无需手动检查权限，中间件已处理</text>
+          </g>
+
+          <!-- ═══ Frontend Development ═══ -->
+          <rect x="540" y="50" width="460" height="420" rx="12" fill="rgba(21,138,62,.03)" stroke="rgba(21,138,62,.2)" stroke-width="2"/>
+          <text x="560" y="75" font-size="13" font-weight="700" fill="#158a3e">前端开发 (Frontend)</text>
+
+          <!-- Step 5: Add Permission Check -->
+          <g class="node-box" data-detail="dev-frontend-check">
+            <rect x="560" y="90" width="420" height="70" rx="8" fill="#fff" stroke="rgba(21,138,62,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="580" y="112" font-size="12" font-weight="600" fill="#158a3e">⑤ 获取用户权限列表</text>
+            <text x="580" y="130" font-size="10" fill="#555a6e" class="mono">GET /api/user/self</text>
+            <text x="580" y="145" font-size="9" fill="#8b90a0">返回: { permissions: ["tenant:invoice:view", ...] }</text>
+          </g>
+
+          <!-- Step 6: Conditional Rendering -->
+          <g class="node-box" data-detail="dev-frontend-render">
+            <rect x="560" y="175" width="420" height="70" rx="8" fill="#fff" stroke="rgba(21,138,62,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="580" y="197" font-size="12" font-weight="600" fill="#158a3e">⑥ 条件渲染菜单/按钮</text>
+            <text x="580" y="215" font-size="10" fill="#555a6e" class="mono">useUserPermissions() hook</text>
+            <text x="580" y="230" font-size="9" fill="#8b90a0">if (hasPermission("tenant:invoice:view")) { ... }</text>
+          </g>
+
+          <!-- Step 7: API Call -->
+          <g class="node-box" data-detail="dev-frontend-api">
+            <rect x="560" y="260" width="420" height="70" rx="8" fill="#fff" stroke="rgba(21,138,62,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="580" y="282" font-size="12" font-weight="600" fill="#158a3e">⑦ 调用受保护的 API</text>
+            <text x="580" y="300" font-size="10" fill="#555a6e" class="mono">API.get('/api/invoice')</text>
+            <text x="580" y="315" font-size="9" fill="#8b90a0">后端中间件会再次验证权限</text>
+          </g>
+
+          <!-- Step 8: Error Handling -->
+          <g class="node-box" data-detail="dev-frontend-error">
+            <rect x="560" y="345" width="420" height="70" rx="8" fill="#fff" stroke="rgba(21,138,62,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="580" y="367" font-size="12" font-weight="600" fill="#158a3e">⑧ 处理 403 错误</text>
+            <text x="580" y="385" font-size="10" fill="#555a6e" class="mono">catch (err) { if (err.status === 403) ... }</text>
+            <text x="580" y="400" font-size="9" fill="#8b90a0">显示"权限不足"提示</text>
+          </g>
+
+          <!-- ═══ Permission Assignment ═══ -->
+          <rect x="40" y="490" width="960" height="180" rx="12" fill="rgba(107,79,170,.03)" stroke="rgba(107,79,170,.2)" stroke-width="2"/>
+          <text x="60" y="515" font-size="13" font-weight="700" fill="#6b4faa">权限分配 (Permission Assignment)</text>
+
+          <!-- Step 9: Create/Update Role -->
+          <g class="node-box" data-detail="dev-assign-role">
+            <rect x="60" y="530" width="440" height="70" rx="8" fill="#fff" stroke="rgba(107,79,170,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="80" y="552" font-size="12" font-weight="600" fill="#6b4faa">⑨ 创建/更新角色</text>
+            <text x="80" y="570" font-size="10" fill="#555a6e" class="mono">POST /api/role</text>
+            <text x="80" y="585" font-size="9" fill="#8b90a0">{ code: "finance", name: "财务" }</text>
+          </g>
+
+          <!-- Step 10: Assign Permissions -->
+          <g class="node-box" data-detail="dev-assign-perms">
+            <rect x="540" y="530" width="440" height="70" rx="8" fill="#fff" stroke="rgba(107,79,170,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="560" y="552" font-size="12" font-weight="600" fill="#6b4faa">⑩ 为角色分配权限</text>
+            <text x="560" y="570" font-size="10" fill="#555a6e" class="mono">PUT /api/role/:id/permissions</text>
+            <text x="560" y="585" font-size="9" fill="#8b90a0">{ permission_ids: [1, 5, 8, ...] }</text>
+          </g>
+
+          <!-- Step 11: Assign to User -->
+          <g class="node-box" data-detail="dev-assign-user">
+            <rect x="60" y="615" width="920" height="45" rx="8" fill="#fff" stroke="rgba(107,79,170,.3)" stroke-width="1.5" filter="url(#shadow1)"/>
+            <text x="80" y="642" font-size="12" font-weight="600" fill="#6b4faa">⑪ 将角色分配给用户</text>
+            <text x="520" y="642" font-size="10" fill="#555a6e" class="mono">PUT /api/user/:id/role  →  { role_id: 2 }</text>
+          </g>
+
+          <!-- ═══ Key Points ═══ -->
+          <rect x="40" y="690" width="960" height="210" rx="12" fill="rgba(192,108,0,.03)" stroke="rgba(192,108,0,.2)" stroke-width="2"/>
+          <text x="60" y="715" font-size="13" font-weight="700" fill="#c06c00">关键要点 (Key Points)</text>
+
+          <text x="80" y="745" font-size="11" font-weight="600" fill="#1a1d26">✓ 双重验证</text>
+          <text x="100" y="762" font-size="10" fill="#555a6e">前端权限检查仅用于 UI 优化，后端中间件是真正的安全边界</text>
+
+          <text x="80" y="790" font-size="11" font-weight="600" fill="#1a1d26">✓ 权限命名规范</text>
+          <text x="100" y="807" font-size="10" fill="#555a6e">格式: <code class="mono" style="color:#2b5cd9">scope:module:action</code>  例如: tenant:invoice:view, tenant:user:create</text>
+
+          <text x="80" y="835" font-size="11" font-weight="600" fill="#1a1d26">✓ 缓存失效</text>
+          <text x="100" y="852" font-size="10" fill="#555a6e">修改角色权限后，调用 service.ClearAllPermCache() 清除缓存</text>
+
+          <text x="80" y="880" font-size="11" font-weight="600" fill="#1a1d26">✓ 向后兼容</text>
+          <text x="100" y="897" font-size="10" fill="#555a6e">旧接口保持 UserAuth()/AdminAuth()，新接口使用 RequirePerm()，逐步迁移</text>
+
+        </svg>
+      </div>
+    </div>
+
+    <!-- Section: Code Examples -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag cyan">EXAMPLES</span>
+        <span class="section-title">代码示例</span>
+        <button class="detail-btn cyan" data-detail="dev-code-backend">
+          <svg viewBox="0 0 16 16"><path d="M8 2a6 6 0 100 12A6 6 0 008 2zm0 1a5 5 0 110 10A5 5 0 018 3zm-.5 2h1v3.5h3v1h-3V13h-1V6z"/></svg>
+          后端代码
+        </button>
+        <button class="detail-btn green" data-detail="dev-code-frontend">
+          <svg viewBox="0 0 16 16"><path d="M8 2a6 6 0 100 12A6 6 0 008 2zm0 1a5 5 0 110 10A5 5 0 018 3zm-.5 2h1v3.5h3v1h-3V13h-1V6z"/></svg>
+          前端代码
+        </button>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <!-- ════════════════════════════════════════════════ -->
@@ -760,9 +916,16 @@ svg .mono { font-family:'JetBrains Mono', monospace; }
 </div>
 
 <script>
+/* ── Debug ── */
+console.log('Script loaded');
+
 /* ── Tab Switching ── */
-document.querySelectorAll('.tab-btn').forEach(btn => {
+const tabButtons = document.querySelectorAll('.tab-btn');
+console.log('Found tab buttons:', tabButtons.length);
+
+tabButtons.forEach(btn => {
   btn.addEventListener('click', () => {
+    console.log('Tab clicked:', btn.dataset.tab);
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
@@ -914,78 +1077,114 @@ const details = {
     `
   },
   'new-middleware': {
-    title: '增强的中间件鉴权层',
+    title: '中间件鉴权层',
     html: `
-      <h3>新增中间件</h3>
+      <h3>实际实现</h3>
+      <p>文件位置: <code>middleware/auth.go</code> 和 <code>middleware/require_perm.go</code></p>
+      <h3>两层验证</h3>
       <ol class="algo-steps">
-        <li><span class="n">1</span><code>RequireAuth()</code> — 替代 UserAuth()，仅验证登录状态</li>
-        <li><span class="n">2</span><code>RequirePermission("code")</code> — 新增，检查用户是否拥有指定权限</li>
+        <li><span class="n">1</span><code>UserAuth()</code> — 验证用户登录状态，设置 context 中的 user 信息</li>
+        <li><span class="n">2</span><code>RequirePerm(code)</code> — 检查用户是否拥有指定权限代码</li>
       </ol>
+      <h3>RequirePerm 实现</h3>
+      <pre style="background:#f7f8fa;padding:10px;border-radius:6px;font-size:10px;overflow-x:auto;"><code>func RequirePerm(code string) gin.HandlerFunc {
+  return func(c *gin.Context) {
+    userId := c.GetInt("id")
+    agentId := common.GetContextKeyInt(c, constant.ContextKeyAgentId)
+
+    has, err := service.HasPermission(userId, agentId, code)
+    if !has {
+      c.JSON(403, gin.H{"success": false, "message": "缺少权限: " + code})
+      c.Abort()
+      return
+    }
+    c.Next()
+  }
+}</code></pre>
       <h3>兼容策略</h3>
-      <p>旧的 <code>UserAuth()</code>、<code>AdminAuth()</code>、<code>RootAuth()</code> 保留不变，保证兼容。新接口使用 <code>RequirePermission()</code>。</p>
-      <h3>路由示例</h3>
-      <ol class="algo-steps">
-        <li><span class="n">旧</span><code>adminRoute.Use(AdminAuth())</code> — 所有 Admin 接口</li>
-        <li><span class="n">新</span><code>channelRoute.Use(RequirePermission("channel:write"))</code> — 精确到模块</li>
-      </ol>
+      <p>旧的 <code>AdminAuth()</code>、<code>RootAuth()</code> 保留不变，新接口使用 <code>RequirePerm()</code>。</p>
     `
   },
   'new-permcheck': {
     title: '权限检查引擎',
     html: `
       <h3>核心函数</h3>
-      <p><code>HasPermission(userId int, permCode string) bool</code></p>
+      <p>文件位置: <code>service/rbac_service.go</code></p>
+      <p><code>HasPermission(userId int, agentId int, code string) (bool, error)</code></p>
       <h3>检查流程</h3>
       <ol class="algo-steps">
-        <li><span class="n">1</span>从缓存获取用户的权限集合 <code>Set&lt;string&gt;</code></li>
-        <li><span class="n">2</span>缓存未命中：查询 <code>users → roles → role_permissions → permissions</code></li>
-        <li><span class="n">3</span>将权限 code 列表缓存（Redis + 内存，TTL 5min）</li>
-        <li><span class="n">4</span>检查 permCode 是否在集合中</li>
+        <li><span class="n">1</span>从缓存获取用户的权限集合 <code>[]string</code></li>
+        <li><span class="n">2</span>缓存未命中：查询 <code>GetUserPermissionCodes(userId, agentId)</code></li>
+        <li><span class="n">3</span>SQL: JOIN user_roles → role_permissions → permissions</li>
+        <li><span class="n">4</span>将权限 code 列表缓存（内存 sync.Map，TTL 5min）</li>
+        <li><span class="n">5</span>使用 matchPermission() 检查权限</li>
       </ol>
       <h3>通配符支持</h3>
-      <p>可选：支持 <code>*</code> 通配符。Root 角色拥有 <code>*</code> 权限，匹配所有权限代码。</p>
+      <dl class="kv-grid">
+        <dt>platform:*</dt><dd>匹配所有权限（Root 专用）</dd>
+        <dt>tenant:user:*</dt><dd>匹配所有 tenant:user: 前缀的权限</dd>
+        <dt>tenant:channel:view</dt><dd>精确匹配</dd>
+      </dl>
+      <h3>缓存策略</h3>
+      <p>L1: 进程内存 sync.Map，TTL 5 分钟<br/>
+      失效: 修改角色权限时调用 <code>ClearAllPermCache()</code></p>
     `
   },
   'new-roles-table': {
-    title: 'roles 表 — 改造后',
+    title: 'roles 表 — 实际实现',
     html: `
-      <h3>主要变化</h3>
-      <table class="compare-table">
-        <tr><th>字段</th><th class="old">当前</th><th class="new">改造后</th></tr>
-        <tr><td>level</td><td class="old">int（固定等级）</td><td class="new">移除</td></tr>
-        <tr><td>is_system</td><td>bool</td><td>保留，系统角色不可删除</td></tr>
-        <tr><td>其他</td><td>—</td><td>不变</td></tr>
-      </table>
+      <h3>表结构</h3>
+      <dl class="kv-grid">
+        <dt>id</dt><dd>主键</dd>
+        <dt>agent_id</dt><dd>租户隔离（0=全局系统角色，>0=代理商专属）</dd>
+        <dt>code</dt><dd>角色代码（admin, sales, finance 等）</dd>
+        <dt>name</dt><dd>显示名称</dd>
+        <dt>parent_id</dt><dd>父角色 ID，支持角色层级继承</dd>
+        <dt>level</dt><dd>兼容字段，保留用于旧代码</dd>
+        <dt>is_system</dt><dd>系统角色不可删除</dd>
+      </dl>
       <h3>系统预置角色</h3>
-      <p>仍然预置 5 个系统角色（guest/user/sales/admin/root），但权限通过 role_permissions 关联，而非 level 数字。</p>
+      <table class="compare-table">
+        <tr><th>Code</th><th>Name</th><th>Level</th><th>说明</th></tr>
+        <tr><td>guest</td><td>Guest</td><td>0</td><td>访客</td></tr>
+        <tr><td>user</td><td>User</td><td>1</td><td>普通用户</td></tr>
+        <tr><td>sales</td><td>Sales</td><td>5</td><td>销售</td></tr>
+        <tr><td>admin</td><td>Admin</td><td>10</td><td>管理员</td></tr>
+        <tr><td>root</td><td>Root</td><td>100</td><td>超级管理员</td></tr>
+      </table>
+      <h3>角色层级</h3>
+      <p>Root → Admin → Sales<br/>
+      Root → User<br/>
+      Root → Guest</p>
+      <p>子角色可以继承父角色的部分权限。</p>
     `
   },
   'new-permissions-table': {
     title: 'permissions 表 — 权限字典',
     html: `
-      <h3>这张表是什么？</h3>
-      <p>permissions 是一张<strong>字典表</strong>，预先定义了系统中所有可分配的权限。每一行代表一个原子操作权限。</p>
-
-      <h3>实际数据示例</h3>
-      <table class="compare-table">
-        <tr><th>id</th><th>code</th><th>name</th><th>module</th><th>action</th></tr>
-        <tr><td>1</td><td>channel:read</td><td>查看渠道</td><td>channel</td><td>read</td></tr>
-        <tr><td>2</td><td>channel:write</td><td>管理渠道</td><td>channel</td><td>write</td></tr>
-        <tr><td>3</td><td>user:read</td><td>查看用户</td><td>user</td><td>read</td></tr>
-        <tr><td>4</td><td>user:write</td><td>管理用户</td><td>user</td><td>write</td></tr>
-        <tr><td>5</td><td>log:read</td><td>查看日志</td><td>log</td><td>read</td></tr>
-        <tr><td>6</td><td>dashboard:read</td><td>查看仪表盘</td><td>dashboard</td><td>read</td></tr>
-        <tr><td>7</td><td>token:read</td><td>查看令牌</td><td>token</td><td>read</td></tr>
-        <tr><td>8</td><td>token:write</td><td>管理令牌</td><td>token</td><td>write</td></tr>
-        <tr><td>9</td><td>setting:read</td><td>查看设置</td><td>setting</td><td>read</td></tr>
-        <tr><td>10</td><td>setting:write</td><td>修改设置</td><td>setting</td><td>write</td></tr>
-      </table>
-
-      <h3>命名规则</h3>
-      <p><code>module:action</code> 二段式，例如 <code>channel:read</code> = 渠道模块 + 只读操作。</p>
-
-      <h3>谁管理这张表？</h3>
-      <p>由<strong>系统预置</strong>，代理商不能自定义权限。新增功能模块时通过迁移脚本添加新行。代理商能做的是把这些权限「组合」到自己的角色上。</p>
+      <h3>表结构</h3>
+      <dl class="kv-grid">
+        <dt>id</dt><dd>主键</dd>
+        <dt>agent_id</dt><dd>租户隔离（0=系统权限，>0=租户专属）</dd>
+        <dt>parent_id</dt><dd>父权限 ID，支持权限树结构</dd>
+        <dt>perm_type</dt><dd>1=目录 2=菜单 3=按钮 4=接口</dd>
+        <dt>code</dt><dd>权限代码（tenant:user:view）</dd>
+        <dt>name</dt><dd>显示名称（查看用户）</dd>
+        <dt>route_path</dt><dd>前端路由路径</dd>
+        <dt>api_method</dt><dd>API 方法（GET/POST/PUT/DELETE）</dd>
+        <dt>api_path</dt><dd>API 路径（/api/user）</dd>
+        <dt>status</dt><dd>状态（1=启用 0=禁用）</dd>
+      </dl>
+      <h3>权限命名规范</h3>
+      <p>格式: <code>scope:module:action</code></p>
+      <ul class="flow-list">
+        <li><code>tenant:user:view</code> - 查看用户</li>
+        <li><code>tenant:user:create</code> - 创建用户</li>
+        <li><code>tenant:user:update</code> - 编辑用户</li>
+        <li><code>tenant:user:delete</code> - 删除用户</li>
+        <li><code>tenant:user:assign_role</code> - 分配角色</li>
+        <li><code>platform:*</code> - 平台超级权限</li>
+      </ul>
     `
   },
   'new-role-perms': {
@@ -1024,59 +1223,66 @@ const details = {
     `
   },
   'new-users-table': {
-    title: 'users 表 — 简化',
+    title: 'users 表 — 兼容性设计',
     html: `
-      <h3>变化</h3>
+      <h3>双字段策略</h3>
       <table class="compare-table">
-        <tr><th>字段</th><th class="old">当前</th><th class="new">改造后</th></tr>
-        <tr><td>role</td><td class="old">int（实际用于鉴权）</td><td class="new">保留但仅用于兼容</td></tr>
-        <tr><td>role_id</td><td>int（仅显示用途）</td><td class="new">成为实际鉴权的依据</td></tr>
+        <tr><th>字段</th><th>用途</th><th>说明</th></tr>
+        <tr><td>role</td><td>兼容字段</td><td>保留用于旧代码的 level 比较</td></tr>
+        <tr><td>role_id</td><td class="new">实际使用</td><td>指向 roles 表，用于 RBAC 权限查询</td></tr>
       </table>
       <h3>迁移策略</h3>
-      <p>过渡期两个字段并存。新接口用 role_id → 权限检查，旧接口仍用 role 整数比较。最终完全迁移后可移除 role 字段。</p>
+      <p>✓ 新接口使用 role_id 查询权限<br/>
+      ✓ 旧接口仍使用 role 进行等级比较<br/>
+      ✓ 两个字段保持同步更新<br/>
+      ✓ 逐步迁移，无需一次性改造</p>
+      <h3>设置角色流程</h3>
+      <ol class="algo-steps">
+        <li><span class="n">1</span>调用 <code>PUT /api/user/:id/role</code>，传入 role_id</li>
+        <li><span class="n">2</span>查找 roles 表获取对应的 level</li>
+        <li><span class="n">3</span>同时更新 users.role 和 users.role_id</li>
+        <li><span class="n">4</span>清除用户权限缓存</li>
+      </ol>
     `
   },
   'new-resolution': {
     title: '权限解析流程 — 完整示例',
     html: `
       <h3>场景：用户张三访问「创建渠道」接口</h3>
-      <p>路由上配置了 <code>RequirePermission("channel:write")</code></p>
+      <p>路由配置: <code>middleware.RequirePerm("tenant:channel:create")</code></p>
 
-      <h3>第一步：找到用户的角色</h3>
+      <h3>第一步：获取用户角色</h3>
       <ol class="algo-steps">
-        <li><span class="n">SQL</span><code>SELECT role_id FROM users WHERE id = 张三</code></li>
-        <li><span class="n">结果</span>role_id = <strong>2</strong>（运营角色）</li>
+        <li><span class="n">SQL</span><code>SELECT role_id FROM users WHERE id = 张三的ID</code></li>
+        <li><span class="n">结果</span>role_id = <strong>2</strong>（假设是运营角色）</li>
       </ol>
 
-      <h3>第二步：找到该角色的所有权限 ID</h3>
+      <h3>第二步：查询用户权限代码（带缓存）</h3>
       <ol class="algo-steps">
-        <li><span class="n">SQL</span><code>SELECT permission_id FROM role_permissions WHERE role_id = 2</code></li>
-        <li><span class="n">结果</span>permission_id = [5, 6, 7]（<strong>3 条记录</strong>）</li>
+        <li><span class="n">SQL</span><code>SELECT DISTINCT p.code FROM permissions p<br/>
+        JOIN role_permissions rp ON p.id = rp.permission_id<br/>
+        JOIN user_roles ur ON ur.role_id = rp.role_id<br/>
+        WHERE ur.user_id = 张三的ID AND ur.agent_id = 当前租户ID</code></li>
+        <li><span class="n">结果</span>["tenant:channel:view", "tenant:log:view", "tenant:dashboard:view"]</li>
       </ol>
 
-      <h3>第三步：查出权限代码</h3>
+      <h3>第三步：权限匹配检查</h3>
       <ol class="algo-steps">
-        <li><span class="n">SQL</span><code>SELECT code FROM permissions WHERE id IN (5, 6, 7)</code></li>
-        <li><span class="n">结果</span>["log:read", "dashboard:read", "token:read"]</li>
+        <li><span class="n">判断</span>"tenant:channel:create" 在权限列表中吗？</li>
+        <li><span class="n">结果</span><strong style="color:#d42f3f">不在 → 返回 403 Forbidden</strong></li>
       </ol>
 
-      <h3>第四步：检查权限</h3>
-      <ol class="algo-steps">
-        <li><span class="n">判断</span>"channel:write" 在 ["log:read", "dashboard:read", "token:read"] 中吗？</li>
-        <li><span class="n">结果</span><strong style="color:#d42f3f">不在 → 拒绝访问 (403)</strong></li>
-      </ol>
+      <h3>如果张三是 Admin 角色呢？</h3>
+      <p>Admin 角色的权限列表包含 "tenant:channel:create"</p>
+      <p><strong style="color:#158a3e">在列表中 → 允许访问，继续执行 Controller</strong></p>
 
-      <h3>如果张三是 Admin 角色（role_id=1）呢？</h3>
-      <p>role_permissions 中 role_id=1 有 6 条记录，查出来是 ["channel:read", "channel:write", "user:read", "user:write", "log:read", "dashboard:read"]</p>
-      <p>"channel:write" <strong style="color:#158a3e">在列表中 → 允许访问</strong></p>
+      <h3>通配符匹配</h3>
+      <p>如果用户有 <code>platform:*</code> 权限（Root 用户），则匹配所有权限代码。<br/>
+      如果用户有 <code>tenant:channel:*</code>，则匹配所有 tenant:channel: 开头的权限。</p>
 
       <h3>缓存优化</h3>
-      <p>实际上第 1~3 步只在首次查询时执行，结果缓存为 <code>Set&lt;string&gt;</code>。后续请求直接从缓存判断，不查数据库。</p>
-      <dl class="kv-grid">
-        <dt>L1</dt><dd>进程内存 sync.Map，TTL 5 分钟</dd>
-        <dt>L2</dt><dd>Redis Hash，TTL 10 分钟</dd>
-        <dt>失效</dt><dd>修改角色权限时主动清缓存</dd>
-      </dl>
+      <p>权限列表缓存在内存中（sync.Map），TTL 5 分钟。<br/>
+      修改角色权限时调用 <code>ClearAllPermCache()</code> 清除所有缓存。</p>
     `
   },
   'new-benefits': {
@@ -1085,13 +1291,429 @@ const details = {
       <h3>对比</h3>
       <table class="compare-table">
         <tr><th>能力</th><th class="old">当前</th><th class="new">新方案</th></tr>
-        <tr><td>权限粒度</td><td class="old">3 个等级（User/Admin/Root）</td><td class="new">16+ 个独立权限</td></tr>
+        <tr><td>权限粒度</td><td class="old">3 个等级（User/Admin/Root）</td><td class="new">50+ 个独立权限</td></tr>
         <tr><td>自定义角色</td><td class="old">仅能设置 level 数字</td><td class="new">自由组合权限</td></tr>
-        <tr><td>互斥权限</td><td class="old">不支持</td><td class="new">支持（不同角色不同权限组合）</td></tr>
-        <tr><td>前端控制</td><td class="old">按等级推算</td><td class="new">按权限列表渲染</td></tr>
-        <tr><td>新模块接入</td><td class="old">改中间件代码</td><td class="new">添加权限记录</td></tr>
+        <tr><td>权限继承</td><td class="old">固定层级继承</td><td class="new">支持角色树和权限继承</td></tr>
+        <tr><td>通配符</td><td class="old">不支持</td><td class="new">支持 platform:* 和 tenant:user:*</td></tr>
+        <tr><td>前端控制</td><td class="old">按等级推算</td><td class="new">按权限列表动态渲染</td></tr>
         <tr><td>多租户</td><td class="old">受限于固定等级</td><td class="new">每个租户独立角色+权限</td></tr>
+        <tr><td>向后兼容</td><td class="old">—</td><td class="new">保留 role 字段，平滑迁移</td></tr>
       </table>
+      <h3>实际应用场景</h3>
+      <ul class="flow-list">
+        <li><strong>财务角色</strong>：只能查看账单和充值记录，不能管理用户和渠道</li>
+        <li><strong>运营角色</strong>：可以查看日志和统计，但不能修改系统设置</li>
+        <li><strong>技术负责人</strong>：可以管理渠道和模型，但不能分配用户角色</li>
+        <li><strong>审计角色</strong>：只读权限，可以查看所有数据但不能修改</li>
+      </ul>
+    `
+  },
+
+  // ── Development workflow details ──
+  'dev-define-permission': {
+    title: '① 定义权限代码',
+    html: `
+      <h3>权限命名规范</h3>
+      <p>格式: <code>scope:module:action</code></p>
+      <dl class="kv-grid">
+        <dt>scope</dt><dd>tenant (租户级) 或 platform (平台级)</dd>
+        <dt>module</dt><dd>功能模块名，如 user, channel, invoice</dd>
+        <dt>action</dt><dd>操作类型，如 view, create, update, delete</dd>
+      </dl>
+      <h3>示例</h3>
+      <ul class="flow-list">
+        <li><code>tenant:invoice:view</code> - 查看发票</li>
+        <li><code>tenant:invoice:create</code> - 创建发票</li>
+        <li><code>tenant:user:assign_role</code> - 分配用户角色</li>
+        <li><code>platform:*</code> - 平台超级权限（Root 专用）</li>
+      </ul>
+    `
+  },
+  'dev-seed-permission': {
+    title: '② 添加到权限种子数据',
+    html: `
+      <h3>文件位置</h3>
+      <p><code>model/permission_seed.go</code></p>
+      <h3>代码示例</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:11px;overflow-x:auto;"><code>var systemPermissions = []PermissionSeed{
+  // ... 现有权限
+  {
+    Code:     "tenant:invoice:view",
+    Name:     "查看发票",
+    Module:   "invoice",
+    Action:   "view",
+    PermType: 4, // 接口权限
+  },
+  {
+    Code:     "tenant:invoice:create",
+    Name:     "创建发票",
+    Module:   "invoice",
+    Action:   "create",
+    PermType: 4,
+  },
+}</code></pre>
+      <h3>自动初始化</h3>
+      <p>系统启动时会调用 <code>EnsureSystemPermissions()</code> 自动创建这些权限记录。</p>
+    `
+  },
+  'dev-add-middleware': {
+    title: '③ 路由添加权限中间件',
+    html: `
+      <h3>文件位置</h3>
+      <p><code>router/api-router.go</code></p>
+      <h3>代码示例</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:11px;overflow-x:auto;"><code>// 发票管理路由组
+invoiceRoute := apiRouter.Group("/invoice")
+invoiceRoute.Use(middleware.UserAuth()) // 先验证登录
+{
+  // 查看发票列表 - 需要 view 权限
+  invoiceRoute.GET("/",
+    middleware.RequirePerm("tenant:invoice:view"),
+    controller.GetInvoices)
+
+  // 创建发票 - 需要 create 权限
+  invoiceRoute.POST("/",
+    middleware.RequirePerm("tenant:invoice:create"),
+    controller.CreateInvoice)
+
+  // 删除发票 - 需要 delete 权限
+  invoiceRoute.DELETE("/:id",
+    middleware.RequirePerm("tenant:invoice:delete"),
+    controller.DeleteInvoice)
+}</code></pre>
+      <h3>中间件执行顺序</h3>
+      <ol class="algo-steps">
+        <li><span class="n">1</span>UserAuth() - 验证用户登录状态</li>
+        <li><span class="n">2</span>RequirePerm() - 检查用户是否有指定权限</li>
+        <li><span class="n">3</span>Controller - 执行业务逻辑</li>
+      </ol>
+    `
+  },
+  'dev-controller': {
+    title: '④ 实现业务逻辑',
+    html: `
+      <h3>文件位置</h3>
+      <p><code>controller/invoice.go</code></p>
+      <h3>代码示例</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:11px;overflow-x:auto;"><code>func GetInvoices(c *gin.Context) {
+  // 权限已由中间件验证，这里直接实现业务逻辑
+  userId := c.GetInt("id")
+  agentId := common.GetContextKeyInt(c, constant.ContextKeyAgentId)
+
+  invoices, err := model.GetInvoicesByAgent(agentId)
+  if err != nil {
+    common.ApiError(c, err)
+    return
+  }
+
+  common.ApiSuccess(c, invoices)
+}</code></pre>
+      <h3>关键点</h3>
+      <p>✓ 无需在 Controller 中手动检查权限<br/>
+      ✓ 中间件已确保用户有权限才能到达这里<br/>
+      ✓ 专注于业务逻辑实现即可</p>
+    `
+  },
+  'dev-frontend-check': {
+    title: '⑤ 获取用户权限列表',
+    html: `
+      <h3>API 接口</h3>
+      <p><code>GET /api/user/self</code></p>
+      <h3>返回数据结构</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:11px;overflow-x:auto;"><code>{
+  "success": true,
+  "data": {
+    "id": 123,
+    "username": "zhangsan",
+    "role": 10,
+    "role_id": 2,
+    "permissions": [
+      "tenant:invoice:view",
+      "tenant:invoice:create",
+      "tenant:user:view",
+      "tenant:channel:view",
+      "tenant:log:view"
+    ]
+  }
+}</code></pre>
+      <h3>前端存储</h3>
+      <p>通常在用户登录后调用此接口，将权限列表存储在：</p>
+      <ul class="flow-list">
+        <li>React Context / Redux Store</li>
+        <li>LocalStorage (可选，注意安全性)</li>
+        <li>自定义 Hook (useUserPermissions)</li>
+      </ul>
+    `
+  },
+  'dev-frontend-render': {
+    title: '⑥ 条件渲染菜单/按钮',
+    html: `
+      <h3>使用 Hook 检查权限</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:11px;overflow-x:auto;"><code>import { useUserPermissions } from '@/hooks/common/useUserPermissions';
+
+function InvoiceManagement() {
+  const { hasPermission } = useUserPermissions();
+
+  return (
+    &lt;div&gt;
+      {hasPermission('tenant:invoice:view') && (
+        &lt;InvoiceList /&gt;
+      )}
+
+      {hasPermission('tenant:invoice:create') && (
+        &lt;Button onClick={handleCreate}&gt;
+          创建发票
+        &lt;/Button&gt;
+      )}
+
+      {hasPermission('tenant:invoice:delete') && (
+        &lt;Button danger onClick={handleDelete}&gt;
+          删除
+        &lt;/Button&gt;
+      )}
+    &lt;/div&gt;
+  );
+}</code></pre>
+      <h3>侧边栏菜单过滤</h3>
+      <p>根据权限列表动态生成侧边栏菜单，没有权限的模块不显示。</p>
+    `
+  },
+  'dev-frontend-api': {
+    title: '⑦ 调用受保护的 API',
+    html: `
+      <h3>前端调用示例</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:11px;overflow-x:auto;"><code>import { API } from '@/helpers';
+
+async function fetchInvoices() {
+  try {
+    const res = await API.get('/api/invoice');
+    if (res.data.success) {
+      setInvoices(res.data.data);
+    }
+  } catch (error) {
+    if (error.response?.status === 403) {
+      showError('权限不足，无法访问');
+    }
+  }
+}</code></pre>
+      <h3>双重验证机制</h3>
+      <p><strong>前端检查</strong>：优化用户体验，隐藏无权限的按钮<br/>
+      <strong>后端验证</strong>：真正的安全边界，防止绕过前端检查</p>
+      <p style="color:#d42f3f;font-weight:600;">⚠️ 永远不要只依赖前端权限检查！</p>
+    `
+  },
+  'dev-frontend-error': {
+    title: '⑧ 处理 403 错误',
+    html: `
+      <h3>统一错误处理</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:11px;overflow-x:auto;"><code>// axios interceptor
+API.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 403) {
+      showNotification({
+        type: 'error',
+        title: '权限不足',
+        message: error.response.data.message || '您没有权限执行此操作'
+      });
+
+      // 可选：跳转到无权限页面
+      // router.push('/403');
+    }
+    return Promise.reject(error);
+  }
+);</code></pre>
+      <h3>用户体验优化</h3>
+      <p>✓ 显示友好的错误提示<br/>
+      ✓ 提供联系管理员的方式<br/>
+      ✓ 记录错误日志用于排查</p>
+    `
+  },
+  'dev-assign-role': {
+    title: '⑨ 创建/更新角色',
+    html: `
+      <h3>API 接口</h3>
+      <p><code>POST /api/role</code></p>
+      <h3>请求示例</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:11px;overflow-x:auto;"><code>{
+  "code": "finance",
+  "name": "财务",
+  "description": "负责财务相关功能",
+  "parent_id": 2  // 可选，继承父角色权限
+}</code></pre>
+      <h3>角色层级</h3>
+      <p>支持角色继承，子角色可以继承父角色的部分权限。创建时可指定 parent_id。</p>
+    `
+  },
+  'dev-assign-perms': {
+    title: '⑩ 为角色分配权限',
+    html: `
+      <h3>API 接口</h3>
+      <p><code>PUT /api/role/:id/permissions</code></p>
+      <h3>请求示例</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:11px;overflow-x:auto;"><code>{
+  "permission_ids": [1, 5, 8, 12, 15]
+}</code></pre>
+      <h3>权限选择器</h3>
+      <p>前端使用 <code>PermissionDrawer</code> 组件，按模块分组展示所有可用权限，支持批量选择。</p>
+      <h3>权限验证</h3>
+      <p>后端会验证：</p>
+      <ul class="flow-list">
+        <li>操作者是否有权限管理该角色</li>
+        <li>子角色权限不能超过父角色</li>
+        <li>系统角色需要 platform:* 权限才能修改</li>
+      </ul>
+    `
+  },
+  'dev-assign-user': {
+    title: '⑪ 将角色分配给用户',
+    html: `
+      <h3>API 接口</h3>
+      <p><code>PUT /api/user/:id/role</code></p>
+      <h3>请求示例</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:11px;overflow-x:auto;"><code>{
+  "role_id": 2
+}</code></pre>
+      <h3>生效时机</h3>
+      <p>✓ 立即生效：修改后用户的权限缓存会被清除<br/>
+      ✓ 下次请求：用户的新权限会被重新加载<br/>
+      ✓ 前端刷新：建议提示用户刷新页面以更新菜单</p>
+    `
+  },
+  'dev-code-backend': {
+    title: '后端完整代码示例',
+    html: `
+      <h3>1. 权限种子数据 (model/permission_seed.go)</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:10px;overflow-x:auto;"><code>var invoicePermissions = []PermissionSeed{
+  {Code: "tenant:invoice:view", Name: "查看发票", Module: "invoice", Action: "view", PermType: 4},
+  {Code: "tenant:invoice:create", Name: "创建发票", Module: "invoice", Action: "create", PermType: 4},
+  {Code: "tenant:invoice:update", Name: "编辑发票", Module: "invoice", Action: "update", PermType: 4},
+  {Code: "tenant:invoice:delete", Name: "删除发票", Module: "invoice", Action: "delete", PermType: 4},
+}</code></pre>
+
+      <h3>2. 路由配置 (router/api-router.go)</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:10px;overflow-x:auto;"><code>invoiceRoute := apiRouter.Group("/invoice")
+invoiceRoute.Use(middleware.UserAuth())
+{
+  invoiceRoute.GET("/", middleware.RequirePerm("tenant:invoice:view"), controller.GetInvoices)
+  invoiceRoute.POST("/", middleware.RequirePerm("tenant:invoice:create"), controller.CreateInvoice)
+  invoiceRoute.PUT("/:id", middleware.RequirePerm("tenant:invoice:update"), controller.UpdateInvoice)
+  invoiceRoute.DELETE("/:id", middleware.RequirePerm("tenant:invoice:delete"), controller.DeleteInvoice)
+}</code></pre>
+
+      <h3>3. Controller 实现 (controller/invoice.go)</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:10px;overflow-x:auto;"><code>func GetInvoices(c *gin.Context) {
+  userId := c.GetInt("id")
+  agentId := common.GetContextKeyInt(c, constant.ContextKeyAgentId)
+
+  invoices, err := model.GetInvoicesByAgent(agentId)
+  if err != nil {
+    common.ApiError(c, err)
+    return
+  }
+  common.ApiSuccess(c, invoices)
+}
+
+func CreateInvoice(c *gin.Context) {
+  var req CreateInvoiceRequest
+  if err := c.ShouldBindJSON(&req); err != nil {
+    c.JSON(http.StatusOK, gin.H{"success": false, "message": "参数错误"})
+    return
+  }
+
+  invoice := &model.Invoice{
+    AgentId: common.GetContextKeyInt(c, constant.ContextKeyAgentId),
+    Amount:  req.Amount,
+    Status:  1,
+  }
+
+  if err := model.CreateInvoice(invoice); err != nil {
+    common.ApiError(c, err)
+    return
+  }
+  common.ApiSuccess(c, invoice)
+}</code></pre>
+    `
+  },
+  'dev-code-frontend': {
+    title: '前端完整代码示例',
+    html: `
+      <h3>1. 权限 Hook (hooks/common/usePermission.js)</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:10px;overflow-x:auto;"><code>import { useContext } from 'react';
+import { UserContext } from '@/contexts/UserContext';
+
+export function usePermission() {
+  const { user } = useContext(UserContext);
+
+  const hasPermission = (code) => {
+    if (!user?.permissions) return false;
+    return user.permissions.includes(code) ||
+           user.permissions.includes('platform:*');
+  };
+
+  return { hasPermission };
+}</code></pre>
+
+      <h3>2. 组件使用示例 (pages/Invoice/InvoiceList.jsx)</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:10px;overflow-x:auto;"><code>import { usePermission } from '@/hooks/common/usePermission';
+import { API } from '@/helpers';
+
+function InvoiceList() {
+  const { hasPermission } = usePermission();
+  const [invoices, setInvoices] = useState([]);
+
+  useEffect(() => {
+    if (hasPermission('tenant:invoice:view')) {
+      loadInvoices();
+    }
+  }, []);
+
+  const loadInvoices = async () => {
+    try {
+      const res = await API.get('/api/invoice');
+      if (res.data.success) {
+        setInvoices(res.data.data);
+      }
+    } catch (error) {
+      showError(error.response?.data?.message || '加载失败');
+    }
+  };
+
+  const handleCreate = async () => {
+    // 创建逻辑
+  };
+
+  if (!hasPermission('tenant:invoice:view')) {
+    return &lt;NoPermission /&gt;;
+  }
+
+  return (
+    &lt;div&gt;
+      &lt;Table dataSource={invoices} /&gt;
+      {hasPermission('tenant:invoice:create') && (
+        &lt;Button onClick={handleCreate}&gt;创建发票&lt;/Button&gt;
+      )}
+    &lt;/div&gt;
+  );
+}</code></pre>
+
+      <h3>3. 路由守卫 (router/PermissionRoute.jsx)</h3>
+      <pre style="background:#f7f8fa;padding:12px;border-radius:6px;font-size:10px;overflow-x:auto;"><code>function PermissionRoute({ permission, children }) {
+  const { hasPermission } = usePermission();
+
+  if (!hasPermission(permission)) {
+    return &lt;Navigate to="/403" /&gt;;
+  }
+
+  return children;
+}
+
+// 使用
+&lt;Route path="/invoice" element={
+  &lt;PermissionRoute permission="tenant:invoice:view"&gt;
+    &lt;InvoiceList /&gt;
+  &lt;/PermissionRoute&gt;
+} /&gt;</code></pre>
     `
   }
 };
