@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClickHouse 最小集成方案 — PG 管真账 · ClickHouse 只做统计</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+:root {
+  --bg: #ffffff;
+  --surface: #f7f8fa;
+  --surface2: #eef0f4;
+  --border: #d8dbe3;
+  --text: #1a1d26;
+  --text2: #555a6e;
+  --text3: #8b90a0;
+  --blue: #2b5cd9;
+  --cyan: #0c7bb3;
+  --orange: #c06c00;
+  --red: #d42f3f;
+  --green: #158a3e;
+  --purple: #6b4faa;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Noto Sans SC', sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:var(--sans); background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
+
+.page { max-width:1140px; margin:0 auto; padding:40px 20px 80px; }
+.title { text-align:center; margin-bottom:12px; }
+.title h1 { font-size:22px; font-weight:700; letter-spacing:-0.5px; }
+.title p { font-size:12px; color:var(--text3); font-family:var(--mono); margin-top:6px; }
+
+/* Tabs */
+.tab-bar {
+  display:flex; justify-content:center; gap:4px; margin:24px auto 28px;
+  background:var(--surface); border-radius:10px; padding:4px; width:fit-content;
+}
+.tab-btn {
+  padding:8px 18px; border-radius:8px; border:none; background:transparent;
+  font-family:var(--sans); font-size:12.5px; font-weight:500; color:var(--text2);
+  cursor:pointer; transition:all .2s; white-space:nowrap;
+}
+.tab-btn:hover { color:var(--text); }
+.tab-btn.active { background:var(--bg); color:var(--blue); box-shadow:0 1px 4px rgba(0,0,0,.08); font-weight:600; }
+.tab-btn .badge {
+  display:inline-block; font-size:9px; font-weight:700; padding:1px 6px; border-radius:4px;
+  margin-left:5px; vertical-align:middle;
+}
+.badge.pipe { background:rgba(43,92,217,.1); color:var(--blue); }
+.badge.pg { background:rgba(21,138,62,.1); color:var(--green); }
+.badge.worker { background:rgba(192,108,0,.1); color:var(--orange); }
+.badge.ch { background:rgba(107,79,170,.1); color:var(--purple); }
+.badge.gin { background:rgba(12,123,179,.1); color:var(--cyan); }
+.badge.step { background:rgba(212,47,63,.1); color:var(--red); }
+
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+
+/* Section */
+.section { margin-bottom:32px; }
+.section-header { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+.section-tag {
+  font-size:10px; font-weight:700; font-family:var(--mono); padding:3px 10px;
+  border-radius:4px; letter-spacing:0.5px;
+}
+.section-tag.blue { background:rgba(43,92,217,.1); color:var(--blue); }
+.section-tag.cyan { background:rgba(12,123,179,.1); color:var(--cyan); }
+.section-tag.orange { background:rgba(192,108,0,.1); color:var(--orange); }
+.section-tag.red { background:rgba(212,47,63,.1); color:var(--red); }
+.section-tag.green { background:rgba(21,138,62,.1); color:var(--green); }
+.section-tag.purple { background:rgba(107,79,170,.1); color:var(--purple); }
+.section-title { font-size:15px; font-weight:600; }
+
+/* Diagram */
+.diagram-wrap {
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  padding:24px; overflow-x:auto;
+}
+.diagram-wrap svg { display:block; margin:0 auto; }
+
+/* Legend */
+.legend {
+  display:flex; gap:20px; justify-content:center; flex-wrap:wrap;
+  margin-top:20px; padding-top:16px; border-top:1px solid var(--border);
+}
+.legend-item { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text3); }
+.legend-dot { width:10px; height:10px; border-radius:3px; }
+
+/* Tip */
+.tip { text-align:center; margin:16px 0; font-size:11px; color:var(--text3); }
+.tip span { color:var(--blue); }
+
+/* Cards */
+.cards-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; }
+.cards-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-top:16px; }
+.cards-4 { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; margin-top:16px; }
+
+/* Principle cards */
+.principle-card {
+  padding:16px; border-radius:8px; border:1px solid var(--border); background:var(--surface);
+}
+.principle-card .pc-icon { font-size:20px; margin-bottom:8px; }
+.principle-card .pc-title { font-size:13px; font-weight:600; margin-bottom:4px; }
+.principle-card .pc-sub { font-size:11px; font-family:var(--mono); margin-bottom:6px; }
+.principle-card .pc-desc { font-size:11.5px; color:var(--text2); line-height:1.6; }
+.principle-card code { font-family:var(--mono); font-size:10px; background:var(--surface2); padding:1px 5px; border-radius:3px; color:var(--cyan); }
+
+.principle-card.do { border-left:3px solid var(--green); }
+.principle-card.do .pc-title { color:var(--green); }
+.principle-card.do .pc-sub { color:var(--green); }
+.principle-card.dont { border-left:3px solid var(--red); }
+.principle-card.dont .pc-title { color:var(--red); }
+.principle-card.dont .pc-sub { color:var(--red); }
+
+/* Schema table */
+.schema-table { width:100%; border-collapse:collapse; font-size:12px; margin-top:12px; }
+.schema-table th {
+  background:var(--surface2); padding:8px 12px; text-align:left;
+  font-weight:600; font-size:11px; color:var(--text2); border-bottom:1.5px solid var(--border);
+}
+.schema-table td {
+  padding:7px 12px; border-bottom:1px solid var(--border); color:var(--text2); line-height:1.5; vertical-align:top;
+}
+.schema-table code {
+  font-family:var(--mono); font-size:10px; background:var(--surface2);
+  padding:1px 5px; border-radius:3px; color:var(--cyan);
+}
+.schema-table .type { font-family:var(--mono); font-size:10px; color:var(--purple); }
+.schema-table .pk { font-family:var(--mono); font-size:9px; color:var(--orange); font-weight:700; }
+
+/* Code block */
+.code-block {
+  background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+  padding:16px; margin-top:12px; overflow-x:auto;
+  font-family:var(--mono); font-size:11px; line-height:1.7; color:var(--text);
+  white-space:pre;
+}
+.code-block .kw { color:var(--blue); font-weight:600; }
+.code-block .fn { color:var(--cyan); }
+.code-block .str { color:var(--green); }
+.code-block .cmt { color:var(--text3); }
+.code-block .type { color:var(--purple); }
+
+/* Step cards */
+.step-card {
+  padding:16px; border-radius:8px; border:1px solid var(--border); background:var(--surface);
+  position:relative;
+}
+.step-card .sc-num {
+  position:absolute; top:-8px; left:12px; font-family:var(--mono); font-size:10px; font-weight:700;
+  padding:2px 8px; border-radius:4px; color:#fff;
+}
+.step-card .sc-num.s1 { background:var(--green); }
+.step-card .sc-num.s2 { background:var(--orange); }
+.step-card .sc-num.s3 { background:var(--purple); }
+.step-card .sc-num.s4 { background:var(--cyan); }
+.step-card .sc-title { font-size:13px; font-weight:600; margin:4px 0 6px; }
+.step-card .sc-desc { font-size:11.5px; color:var(--text2); line-height:1.6; }
+.step-card .sc-desc code { font-family:var(--mono); font-size:10px; background:var(--surface2); padding:1px 5px; border-radius:3px; color:var(--cyan); }
+.step-card .sc-list { list-style:none; padding:0; margin:6px 0 0; }
+.step-card .sc-list li {
+  font-size:11px; color:var(--text2); padding:3px 0 3px 14px;
+  position:relative; line-height:1.5;
+}
+.step-card .sc-list li::before {
+  content:''; position:absolute; left:2px; top:9px;
+  width:5px; height:5px; border-radius:50%; background:var(--blue); opacity:.5;
+}
+
+/* Evolve card */
+.evolve-card {
+  padding:14px 16px; border-radius:8px; border-left:3px solid var(--cyan);
+  background:rgba(12,123,179,.04); margin-top:16px;
+}
+.evolve-card .ec-title { font-size:12px; font-weight:600; color:var(--cyan); margin-bottom:6px; }
+.evolve-card .ec-desc { font-size:11.5px; color:var(--text2); line-height:1.6; }
+.evolve-card code { font-family:var(--mono); font-size:10px; background:var(--surface2); padding:1px 5px; border-radius:3px; color:var(--cyan); }
+
+/* Modal */
+.modal-overlay {
+  display:none; position:fixed; inset:0; z-index:100;
+  background:rgba(0,0,0,.3); backdrop-filter:blur(4px);
+  justify-content:center; align-items:center; padding:20px;
+}
+.modal-overlay.open { display:flex; }
+.modal {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; max-width:680px; width:100%; max-height:80vh;
+  overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.15);
+}
+.modal-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 20px; border-bottom:1px solid var(--border);
+  position:sticky; top:0; background:var(--surface); z-index:1;
+}
+.modal-header h2 { font-size:15px; font-weight:600; }
+.modal-close {
+  width:28px; height:28px; border-radius:6px; border:none;
+  background:var(--surface2); color:var(--text2); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-size:16px;
+  transition:all .15s;
+}
+.modal-close:hover { background:var(--border); color:var(--text); }
+.modal-body { padding:16px 20px 20px; }
+.modal-body h3 { font-size:13px; font-weight:600; color:var(--cyan); margin:14px 0 8px; }
+.modal-body h3:first-child { margin-top:0; }
+.modal-body h3.green { color:var(--green); }
+.modal-body h3.orange { color:var(--orange); }
+.modal-body h3.purple { color:var(--purple); }
+.modal-body h3.red { color:var(--red); }
+.modal-body p { font-size:12.5px; color:var(--text2); line-height:1.7; margin:4px 0; }
+.modal-body code {
+  font-family:var(--mono); font-size:11px; background:var(--surface2);
+  padding:1px 5px; border-radius:3px; color:var(--cyan);
+}
+.modal-body .algo-steps { list-style:none; padding:0; margin:8px 0; }
+.modal-body .algo-steps li {
+  font-size:12px; color:var(--text); padding:6px 10px; margin:3px 0;
+  background:var(--surface2); border-radius:6px; border-left:3px solid var(--cyan);
+  line-height:1.5; display:flex; gap:8px;
+}
+.modal-body .algo-steps li.green-border { border-left-color:var(--green); }
+.modal-body .algo-steps li.orange-border { border-left-color:var(--orange); }
+.modal-body .algo-steps li.purple-border { border-left-color:var(--purple); }
+.modal-body .algo-steps li .n {
+  font-weight:700; color:var(--cyan); flex-shrink:0; font-family:var(--mono); font-size:11px; min-width:16px;
+}
+.modal-body .algo-steps li .n.green { color:var(--green); }
+.modal-body .algo-steps li .n.orange { color:var(--orange); }
+.modal-body .algo-steps li .n.purple { color:var(--purple); }
+.modal-body .kv-grid {
+  display:grid; grid-template-columns:auto 1fr; gap:4px 12px;
+  font-size:12px; margin:8px 0;
+}
+.modal-body .kv-grid dt { color:var(--text3); font-family:var(--mono); font-size:11px; }
+.modal-body .kv-grid dd { color:var(--text2); }
+.modal-body .flow-list { list-style:none; padding:0; margin:6px 0; }
+.modal-body .flow-list li {
+  font-size:12px; color:var(--text2); padding:5px 0 5px 20px;
+  position:relative; line-height:1.6;
+}
+.modal-body .flow-list li::before {
+  content:''; position:absolute; left:4px; top:11px;
+  width:6px; height:6px; border-radius:50%; background:var(--blue); opacity:.6;
+}
+
+/* SVG interactive */
+svg .node-box { cursor:pointer; transition:opacity .15s; }
+svg .node-box:hover { opacity:.85; }
+svg text { font-family:'Noto Sans SC', sans-serif; }
+svg .mono { font-family:'JetBrains Mono', monospace; }
+
+@media (max-width:768px) {
+  .cards-2, .cards-3, .cards-4 { grid-template-columns:1fr; }
+  .tab-bar { flex-wrap:wrap; }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="title">
+    <h1>ClickHouse 最小集成方案</h1>
+    <p>anyfast-partner-hub &middot; PG outbox &middot; analytics worker &middot; ClickHouse &middot; click nodes for details</p>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="pipeline">集成链路 <span class="badge pipe">PIPELINE</span></button>
+    <button class="tab-btn" data-tab="boundary">边界原则 <span class="badge pg">BOUNDARY</span></button>
+    <button class="tab-btn" data-tab="pg">PG 新增 <span class="badge pg">PG</span></button>
+    <button class="tab-btn" data-tab="worker">Worker <span class="badge worker">WORKER</span></button>
+    <button class="tab-btn" data-tab="ch">ClickHouse <span class="badge ch">CH</span></button>
+    <button class="tab-btn" data-tab="roadmap">落地步骤 <span class="badge step">STEP</span></button>
+  </div>
+
+  <div class="tip">点击架构图中的 <span>节点</span> 查看详细信息</div>
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- TAB 1: PIPELINE                         -->
+  <!-- ════════════════════════════════════════ -->
+  <div class="tab-panel active" id="panel-pipeline">
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag blue">PIPELINE</span>
+        <span class="section-title">最小改造集成链路 — 先不用 Kafka，直接 PG Outbox</span>
+      </div>
+      <div class="diagram-wrap">
+        <svg id="svg-pipe" width="1080" height="1100" viewBox="0 0 1080 1100">
+          <defs>
+            <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e8eaef" stroke-width="0.5"/>
+            </pattern>
+            <filter id="sh" x="-4%" y="-4%" width="108%" height="112%">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.08"/>
+            </filter>
+            <marker id="a-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#2b5cd9"/></marker>
+            <marker id="a-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#158a3e"/></marker>
+            <marker id="a-orange" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#c06c00"/></marker>
+            <marker id="a-purple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#6b4faa"/></marker>
+            <marker id="a-cyan" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#0c7bb3"/></marker>
+            <marker id="a-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#d42f3f"/></marker>
+          </defs>
+          <rect width="1080" height="1100" fill="url(#grid)"/>
+
+          <text x="540" y="22" text-anchor="middle" font-size="11" fill="#8b90a0" class="mono">Gin + PG 主链路不动 · ClickHouse 只接最终结算结果 · 中间 outbox/worker 衔接</text>
+
+          <!-- ═══ Column Headers ═══ -->
+          <g class="node-box" data-detail="d-user"><rect x="30" y="38" width="100" height="36" rx="7" fill="#fff" stroke="#d8dbe3" stroke-width="1.5" filter="url(#sh)"/><text x="80" y="60" text-anchor="middle" font-size="11" font-weight="600">用户</text></g>
+          <g class="node-box" data-detail="d-gin"><rect x="175" y="38" width="100" height="36" rx="7" fill="rgba(43,92,217,.08)" stroke="rgba(43,92,217,.3)" stroke-width="1.5" filter="url(#sh)"/><text x="225" y="60" text-anchor="middle" font-size="11" font-weight="600" fill="#2b5cd9">Gin</text></g>
+          <g class="node-box" data-detail="d-pg"><rect x="335" y="38" width="160" height="36" rx="7" fill="rgba(21,138,62,.08)" stroke="rgba(21,138,62,.3)" stroke-width="1.5" filter="url(#sh)"/><text x="415" y="60" text-anchor="middle" font-size="11" font-weight="600" fill="#158a3e">PostgreSQL</text></g>
+          <g class="node-box" data-detail="d-upstream"><rect x="555" y="38" width="100" height="36" rx="7" fill="rgba(212,47,63,.08)" stroke="rgba(212,47,63,.3)" stroke-width="1.5" filter="url(#sh)"/><text x="605" y="60" text-anchor="middle" font-size="11" font-weight="600" fill="#d42f3f">上游</text></g>
+          <g class="node-box" data-detail="d-worker"><rect x="720" y="38" width="140" height="36" rx="7" fill="rgba(192,108,0,.08)" stroke="rgba(192,108,0,.3)" stroke-width="1.5" filter="url(#sh)"/><text x="790" y="60" text-anchor="middle" font-size="11" font-weight="600" fill="#c06c00">Analytics Worker</text></g>
+          <g class="node-box" data-detail="d-ch"><rect x="915" y="38" width="130" height="36" rx="7" fill="rgba(107,79,170,.08)" stroke="rgba(107,79,170,.3)" stroke-width="1.5" filter="url(#sh)"/><text x="980" y="60" text-anchor="middle" font-size="11" font-weight="600" fill="#6b4faa">ClickHouse</text></g>
+
+          <!-- Lifelines -->
+          <line x1="80" y1="74" x2="80" y2="1080" stroke="#d8dbe3" stroke-width="1" stroke-dasharray="4,4" opacity=".3"/>
+          <line x1="225" y1="74" x2="225" y2="1080" stroke="#2b5cd9" stroke-width="1" stroke-dasharray="4,4" opacity=".25"/>
+          <line x1="415" y1="74" x2="415" y2="1080" stroke="#158a3e" stroke-width="1" stroke-dasharray="4,4" opacity=".25"/>
+          <line x1="605" y1="74" x2="605" y2="1080" stroke="#d42f3f" stroke-width="1" stroke-dasharray="4,4" opacity=".25"/>
+          <line x1="790" y1="74" x2="790" y2="1080" stroke="#c06c00" stroke-width="1" stroke-dasharray="4,4" opacity=".25"/>
+          <line x1="980" y1="74" x2="980" y2="1080" stroke="#6b4faa" stroke-width="1" stroke-dasharray="4,4" opacity=".25"/>
+
+          <!-- ═══ PHASE A: Request (KEEP) ═══ -->
+          <rect x="10" y="88" width="650" height="85" rx="8" fill="rgba(43,92,217,.03)" stroke="rgba(43,92,217,.12)" stroke-width="1"/>
+          <text x="25" y="106" font-size="9" font-weight="700" fill="#2b5cd9" class="mono">A</text>
+          <text x="40" y="106" font-size="10" font-weight="600" fill="#2b5cd9">请求进入 + 鉴权</text>
+          <rect x="580" y="95" width="50" height="18" rx="4" fill="rgba(21,138,62,.1)"/><text x="605" y="108" text-anchor="middle" font-size="9" font-weight="700" fill="#158a3e" class="mono">KEEP</text>
+
+          <line x1="80" y1="125" x2="215" y2="125" stroke="#2b5cd9" stroke-width="1.5" marker-end="url(#a-blue)"/>
+          <text x="147" y="120" text-anchor="middle" font-size="9" fill="#555a6e">API 请求</text>
+
+          <rect x="170" y="140" width="110" height="22" rx="4" fill="rgba(43,92,217,.06)" stroke="rgba(43,92,217,.15)" stroke-width="1"/>
+          <text x="225" y="155" text-anchor="middle" font-size="9" fill="#2b5cd9" class="mono">鉴权 + 识别</text>
+
+          <!-- ═══ PHASE B: PreAuth (KEEP) ═══ -->
+          <rect x="10" y="183" width="650" height="100" rx="8" fill="rgba(21,138,62,.03)" stroke="rgba(21,138,62,.12)" stroke-width="1"/>
+          <text x="25" y="201" font-size="9" font-weight="700" fill="#158a3e" class="mono">B</text>
+          <text x="40" y="201" font-size="10" font-weight="600" fill="#158a3e">PG 预扣</text>
+          <rect x="580" y="190" width="50" height="18" rx="4" fill="rgba(21,138,62,.1)"/><text x="605" y="203" text-anchor="middle" font-size="9" font-weight="700" fill="#158a3e" class="mono">KEEP</text>
+
+          <line x1="225" y1="220" x2="405" y2="220" stroke="#158a3e" stroke-width="1.5" marker-end="url(#a-green)"/>
+          <text x="315" y="215" text-anchor="middle" font-size="9" fill="#158a3e">Billing 预扣</text>
+
+          <g class="node-box" data-detail="d-preauth">
+            <rect x="350" y="236" width="130" height="34" rx="5" fill="#fff" stroke="rgba(21,138,62,.25)" stroke-width="1" filter="url(#sh)"/>
+            <text x="415" y="252" text-anchor="middle" font-size="9.5" font-weight="600" fill="#158a3e" class="mono">PREAUTH</text>
+            <text x="415" y="264" text-anchor="middle" font-size="8.5" fill="#555a6e">用户 + 代理商冻结</text>
+          </g>
+
+          <!-- ═══ PHASE C: Upstream (KEEP) ═══ -->
+          <rect x="10" y="293" width="650" height="85" rx="8" fill="rgba(212,47,63,.03)" stroke="rgba(212,47,63,.12)" stroke-width="1"/>
+          <text x="25" y="311" font-size="9" font-weight="700" fill="#d42f3f" class="mono">C</text>
+          <text x="40" y="311" font-size="10" font-weight="600" fill="#d42f3f">调上游模型</text>
+          <rect x="580" y="300" width="50" height="18" rx="4" fill="rgba(21,138,62,.1)"/><text x="605" y="313" text-anchor="middle" font-size="9" font-weight="700" fill="#158a3e" class="mono">KEEP</text>
+
+          <line x1="225" y1="335" x2="595" y2="335" stroke="#d42f3f" stroke-width="1.5" marker-end="url(#a-red)"/>
+          <text x="410" y="330" text-anchor="middle" font-size="9" fill="#d42f3f">转发请求</text>
+
+          <line x1="595" y1="355" x2="235" y2="355" stroke="#158a3e" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#a-green)"/>
+          <text x="410" y="350" text-anchor="middle" font-size="9" fill="#555a6e">token + 成本</text>
+
+          <!-- ═══ PHASE D: Settlement + Outbox (CHANGE) ═══ -->
+          <rect x="10" y="390" width="650" height="250" rx="8" fill="rgba(21,138,62,.03)" stroke="rgba(21,138,62,.12)" stroke-width="1"/>
+          <text x="25" y="408" font-size="9" font-weight="700" fill="#158a3e" class="mono">D</text>
+          <text x="40" y="408" font-size="10" font-weight="600" fill="#158a3e">PG 实扣 + 写结算单 + 写 Outbox（变更点）</text>
+          <rect x="558" y="397" width="72" height="18" rx="4" fill="rgba(192,108,0,.1)"/><text x="594" y="410" text-anchor="middle" font-size="9" font-weight="700" fill="#c06c00" class="mono">CHANGE</text>
+
+          <line x1="225" y1="430" x2="405" y2="430" stroke="#158a3e" stroke-width="1.5" marker-end="url(#a-green)"/>
+          <text x="315" y="425" text-anchor="middle" font-size="9" fill="#158a3e">Billing 实扣</text>
+
+          <!-- PG Transaction box -->
+          <rect x="345" y="445" width="140" height="180" rx="6" fill="rgba(21,138,62,.05)" stroke="rgba(21,138,62,.2)" stroke-width="1.5" stroke-dasharray="6,3"/>
+          <text x="355" y="460" font-size="8" font-weight="700" fill="#158a3e" class="mono">PG TRANSACTION</text>
+
+          <g class="node-box" data-detail="d-settle">
+            <rect x="355" y="468" width="120" height="24" rx="4" fill="#fff" stroke="rgba(21,138,62,.25)" stroke-width="1"/>
+            <text x="415" y="484" text-anchor="middle" font-size="9" fill="#158a3e" class="mono">SETTLE 实扣</text>
+          </g>
+
+          <g class="node-box" data-detail="d-ledger">
+            <rect x="355" y="498" width="120" height="24" rx="4" fill="#fff" stroke="rgba(21,138,62,.25)" stroke-width="1"/>
+            <text x="415" y="514" text-anchor="middle" font-size="9" fill="#158a3e" class="mono">ledger_entry</text>
+          </g>
+
+          <g class="node-box" data-detail="d-settlement">
+            <rect x="355" y="528" width="120" height="28" rx="4" fill="rgba(21,138,62,.1)" stroke="rgba(21,138,62,.35)" stroke-width="1.5"/>
+            <text x="415" y="546" text-anchor="middle" font-size="9" font-weight="700" fill="#158a3e" class="mono">request_settlement</text>
+          </g>
+
+          <g class="node-box" data-detail="d-outbox">
+            <rect x="355" y="562" width="120" height="28" rx="4" fill="rgba(192,108,0,.1)" stroke="rgba(192,108,0,.35)" stroke-width="1.5"/>
+            <text x="415" y="576" text-anchor="middle" font-size="9" font-weight="700" fill="#c06c00" class="mono">event_outbox</text>
+            <text x="415" y="586" text-anchor="middle" font-size="8" fill="#555a6e">PENDING</text>
+          </g>
+
+          <g class="node-box" data-detail="d-log">
+            <rect x="355" y="598" width="120" height="20" rx="4" fill="rgba(107,79,170,.06)" stroke="rgba(107,79,170,.15)" stroke-width="1"/>
+            <text x="415" y="612" text-anchor="middle" font-size="8.5" fill="#6b4faa" class="mono">logs (兼容保留)</text>
+          </g>
+
+          <!-- Return to Gin -->
+          <line x1="405" y1="630" x2="235" y2="630" stroke="#158a3e" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#a-green)"/>
+          <text x="320" y="625" text-anchor="middle" font-size="9" fill="#158a3e">结算完成</text>
+
+          <!-- ═══ PHASE E: Worker (NEW) ═══ -->
+          <rect x="10" y="655" width="1060" height="140" rx="8" fill="rgba(192,108,0,.03)" stroke="rgba(192,108,0,.12)" stroke-width="1"/>
+          <text x="25" y="673" font-size="9" font-weight="700" fill="#c06c00" class="mono">E</text>
+          <text x="40" y="673" font-size="10" font-weight="600" fill="#c06c00">Analytics Worker 扫 Outbox + 批量写 ClickHouse（全新）</text>
+          <rect x="995" y="662" width="45" height="18" rx="4" fill="rgba(43,92,217,.1)"/><text x="1017" y="675" text-anchor="middle" font-size="9" font-weight="700" fill="#2b5cd9" class="mono">NEW</text>
+
+          <!-- Worker scans PG -->
+          <g class="node-box" data-detail="d-worker-scan">
+            <rect x="720" y="695" width="140" height="36" rx="6" fill="rgba(192,108,0,.08)" stroke="rgba(192,108,0,.25)" stroke-width="1"/>
+            <text x="790" y="710" text-anchor="middle" font-size="9.5" font-weight="600" fill="#c06c00">Worker 扫描</text>
+            <text x="790" y="723" text-anchor="middle" font-size="8.5" fill="#555a6e" class="mono">1-2s interval</text>
+          </g>
+
+          <!-- Scan outbox -->
+          <line x1="720" y1="713" x2="485" y2="713" stroke="#c06c00" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#a-orange)"/>
+          <text x="600" y="707" text-anchor="middle" font-size="9" fill="#c06c00">SELECT outbox PENDING</text>
+
+          <!-- Batch write CH -->
+          <line x1="860" y1="713" x2="970" y2="713" stroke="#6b4faa" stroke-width="1.5" marker-end="url(#a-purple)"/>
+          <text x="915" y="707" text-anchor="middle" font-size="9" fill="#6b4faa">批量写入</text>
+
+          <!-- Mark sent -->
+          <line x1="720" y1="750" x2="485" y2="750" stroke="#c06c00" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#a-orange)"/>
+          <text x="600" y="744" text-anchor="middle" font-size="9" fill="#555a6e" class="mono">UPDATE status=SENT</text>
+
+          <!-- ClickHouse fact table -->
+          <g class="node-box" data-detail="d-fact">
+            <rect x="915" y="745" width="130" height="36" rx="6" fill="rgba(107,79,170,.1)" stroke="rgba(107,79,170,.35)" stroke-width="1.5"/>
+            <text x="980" y="761" text-anchor="middle" font-size="9" font-weight="600" fill="#6b4faa" class="mono">fact_request</text>
+            <text x="980" y="774" text-anchor="middle" font-size="9" font-weight="600" fill="#6b4faa" class="mono">_settlement</text>
+          </g>
+
+          <!-- ═══ PHASE F: Materialized Views (NEW) ═══ -->
+          <rect x="10" y="810" width="1060" height="120" rx="8" fill="rgba(107,79,170,.03)" stroke="rgba(107,79,170,.12)" stroke-width="1"/>
+          <text x="25" y="828" font-size="9" font-weight="700" fill="#6b4faa" class="mono">F</text>
+          <text x="40" y="828" font-size="10" font-weight="600" fill="#6b4faa">ClickHouse 物化视图自动聚合（全新）</text>
+          <rect x="995" y="817" width="45" height="18" rx="4" fill="rgba(43,92,217,.1)"/><text x="1017" y="830" text-anchor="middle" font-size="9" font-weight="700" fill="#2b5cd9" class="mono">NEW</text>
+
+          <!-- MV arrows -->
+          <line x1="980" y1="781" x2="980" y2="848" stroke="#6b4faa" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#a-purple)"/>
+
+          <g class="node-box" data-detail="d-agg-min">
+            <rect x="835" y="850" width="120" height="28" rx="5" fill="rgba(107,79,170,.08)" stroke="rgba(107,79,170,.25)" stroke-width="1"/>
+            <text x="895" y="868" text-anchor="middle" font-size="9" font-weight="600" fill="#6b4faa" class="mono">agg_minute</text>
+          </g>
+
+          <g class="node-box" data-detail="d-agg-day">
+            <rect x="970" y="850" width="100" height="28" rx="5" fill="rgba(107,79,170,.08)" stroke="rgba(107,79,170,.25)" stroke-width="1"/>
+            <text x="1020" y="868" text-anchor="middle" font-size="9" font-weight="600" fill="#6b4faa" class="mono">agg_daily</text>
+          </g>
+
+          <text x="960" y="902" text-anchor="middle" font-size="9" fill="#6b4faa" class="mono">Materialized View</text>
+          <text x="960" y="916" text-anchor="middle" font-size="8.5" fill="#555a6e">INSERT 时自动聚合</text>
+
+          <!-- ═══ PHASE G: Gin Report Query ═══ -->
+          <rect x="10" y="940" width="1060" height="125" rx="8" fill="rgba(12,123,179,.03)" stroke="rgba(12,123,179,.12)" stroke-width="1"/>
+          <text x="25" y="958" font-size="9" font-weight="700" fill="#0c7bb3" class="mono">G</text>
+          <text x="40" y="958" font-size="10" font-weight="600" fill="#0c7bb3">报表查询 — Gin 新增接口查 ClickHouse</text>
+          <rect x="995" y="947" width="45" height="18" rx="4" fill="rgba(43,92,217,.1)"/><text x="1017" y="960" text-anchor="middle" font-size="9" font-weight="700" fill="#2b5cd9" class="mono">NEW</text>
+
+          <!-- Gin queries CH -->
+          <line x1="235" y1="985" x2="970" y2="985" stroke="#0c7bb3" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#a-cyan)"/>
+          <text x="600" y="979" text-anchor="middle" font-size="9" fill="#0c7bb3">报表查询 (利润/趋势/聚合)</text>
+
+          <line x1="970" y1="1005" x2="235" y2="1005" stroke="#6b4faa" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#a-purple)"/>
+          <text x="600" y="999" text-anchor="middle" font-size="9" fill="#6b4faa">聚合结果</text>
+
+          <!-- Gin still queries PG for transactions -->
+          <line x1="225" y1="1030" x2="405" y2="1030" stroke="#158a3e" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#a-green)"/>
+          <text x="315" y="1024" text-anchor="middle" font-size="9" fill="#158a3e">交易查询 (余额/账本)</text>
+
+          <line x1="405" y1="1045" x2="235" y2="1045" stroke="#158a3e" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#a-green)"/>
+          <text x="320" y="1039" text-anchor="middle" font-size="9" fill="#555a6e">真账数据</text>
+
+          <!-- Bottom summary -->
+          <rect x="20" y="1065" width="1040" height="24" rx="6" fill="rgba(192,108,0,.06)" stroke="rgba(192,108,0,.15)" stroke-width="1"/>
+          <text x="540" y="1081" text-anchor="middle" font-size="10" font-weight="600" fill="#c06c00">Gin + PG 主链路不动 &middot; ClickHouse 只接已定稿的结算事实 &middot; Worker 中间衔接</text>
+        </svg>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>KEEP 不动</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div>CHANGE 变更</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>NEW 新增</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div>ClickHouse</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- TAB 2: BOUNDARY                         -->
+  <!-- ════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-boundary">
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag green">DO</span>
+        <span class="section-title">ClickHouse 应该接在哪</span>
+      </div>
+      <div class="cards-2">
+        <div class="principle-card do">
+          <div class="pc-title">request_settlement 写完之后</div>
+          <div class="pc-sub">PG 事务已提交</div>
+          <div class="pc-desc">一笔请求在 PG 里完成最终结算后，把"结算事实"同步到 ClickHouse。数据已定稿，天然适合聚合分析。</div>
+        </div>
+        <div class="principle-card do">
+          <div class="pc-title">event_outbox 写完之后</div>
+          <div class="pc-sub">同一事务保证一致</div>
+          <div class="pc-desc">Outbox 和 settlement 在同一 PG 事务里写入。只要事务成功，事件就一定存在。Worker 异步消费不影响主链路。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag red">DON'T</span>
+        <span class="section-title">ClickHouse 不应该接在哪</span>
+      </div>
+      <div class="cards-4">
+        <div class="principle-card dont">
+          <div class="pc-title">请求刚进来时</div>
+          <div class="pc-desc">鉴权和路由阶段不需要写 CH</div>
+        </div>
+        <div class="principle-card dont">
+          <div class="pc-title">预扣事务里</div>
+          <div class="pc-desc">余额冻结是 PG 的事，CH 不参与</div>
+        </div>
+        <div class="principle-card dont">
+          <div class="pc-title">实扣事务里</div>
+          <div class="pc-desc">CH 写入不应阻塞扣费链路</div>
+        </div>
+        <div class="principle-card dont">
+          <div class="pc-title">余额判断里</div>
+          <div class="pc-desc">余额真相只在 PG，CH 不参与决策</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag cyan">PRINCIPLE</span>
+        <span class="section-title">一句话边界</span>
+      </div>
+      <div class="diagram-wrap" style="text-align:center;padding:20px;">
+        <svg width="860" height="100" viewBox="0 0 860 100">
+          <rect width="860" height="100" fill="none"/>
+          <rect x="0" y="10" width="260" height="80" rx="10" fill="rgba(21,138,62,.08)" stroke="rgba(21,138,62,.3)" stroke-width="1.5"/>
+          <text x="130" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="#158a3e">PG</text>
+          <text x="130" y="60" text-anchor="middle" font-size="10" fill="#555a6e">扣费 / 余额 / 预扣 / 实扣</text>
+          <text x="130" y="76" text-anchor="middle" font-size="10" fill="#555a6e">账本 / 结算单 / 退款</text>
+
+          <text x="300" y="55" text-anchor="middle" font-size="20" font-weight="700" fill="#d8dbe3">|</text>
+
+          <rect x="340" y="10" width="200" height="80" rx="10" fill="rgba(192,108,0,.08)" stroke="rgba(192,108,0,.3)" stroke-width="1.5"/>
+          <text x="440" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="#c06c00">Outbox + Worker</text>
+          <text x="440" y="60" text-anchor="middle" font-size="10" fill="#555a6e">异步衔接层</text>
+          <text x="440" y="76" text-anchor="middle" font-size="10" fill="#555a6e">不影响主链路</text>
+
+          <text x="580" y="55" text-anchor="middle" font-size="20" font-weight="700" fill="#d8dbe3">|</text>
+
+          <rect x="620" y="10" width="240" height="80" rx="10" fill="rgba(107,79,170,.08)" stroke="rgba(107,79,170,.3)" stroke-width="1.5"/>
+          <text x="740" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="#6b4faa">ClickHouse</text>
+          <text x="740" y="60" text-anchor="middle" font-size="10" fill="#555a6e">聚合 / 利润分析 / 趋势</text>
+          <text x="740" y="76" text-anchor="middle" font-size="10" fill="#555a6e">报表 / 日报 / 实时看板</text>
+        </svg>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag blue">QUERY</span>
+        <span class="section-title">查询路由</span>
+      </div>
+      <div class="cards-2">
+        <div class="principle-card do">
+          <div class="pc-title">交易真相 -> PG</div>
+          <div class="pc-desc">
+            某请求到底扣没扣<br>
+            某账户余额多少<br>
+            某笔账本流水<br>
+            某笔结算单
+          </div>
+        </div>
+        <div class="principle-card" style="border-left:3px solid var(--purple);">
+          <div class="pc-title" style="color:var(--purple);">分析报表 -> ClickHouse</div>
+          <div class="pc-desc">
+            代理商今天赚了多少<br>
+            过去 7 天某模型平台利润<br>
+            每分钟请求量<br>
+            Top 代理商排行
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- TAB 3: PG SCHEMA                        -->
+  <!-- ════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-pg">
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag green">PG</span>
+        <span class="section-title">request_settlement 表 — 结算事实来源</span>
+      </div>
+      <table class="schema-table">
+        <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td class="type">bigserial</td><td><span class="pk">PK</span></td></tr>
+          <tr><td><code>request_id</code></td><td class="type">varchar(64)</td><td>请求唯一标识 <span class="pk">UK</span></td></tr>
+          <tr><td><code>biz_date</code></td><td class="type">date</td><td>业务日期</td></tr>
+          <tr><td><code>agent_id</code></td><td class="type">int</td><td>代理商 ID (0=平台直客)</td></tr>
+          <tr><td><code>user_id</code></td><td class="type">int</td><td>终端用户 ID</td></tr>
+          <tr><td><code>provider_id</code></td><td class="type">int</td><td>供应商 ID</td></tr>
+          <tr><td><code>channel_id</code></td><td class="type">int</td><td>渠道 ID</td></tr>
+          <tr><td><code>model</code></td><td class="type">varchar(128)</td><td>模型名</td></tr>
+          <tr><td><code>actual_user_amt</code></td><td class="type">bigint</td><td>用户最终实扣 (最小单位)</td></tr>
+          <tr><td><code>actual_agent_amt</code></td><td class="type">bigint</td><td>代理商结算金额</td></tr>
+          <tr><td><code>actual_platform_cost</code></td><td class="type">bigint</td><td>平台真实上游成本</td></tr>
+          <tr><td><code>agent_profit</code></td><td class="type">bigint</td><td>= user_amt - agent_amt</td></tr>
+          <tr><td><code>platform_profit</code></td><td class="type">bigint</td><td>= agent_amt - platform_cost</td></tr>
+          <tr><td><code>input_tokens</code></td><td class="type">int</td><td>输入 token</td></tr>
+          <tr><td><code>output_tokens</code></td><td class="type">int</td><td>输出 token</td></tr>
+          <tr><td><code>total_tokens</code></td><td class="type">int</td><td>总 token</td></tr>
+          <tr><td><code>latency_ms</code></td><td class="type">int</td><td>请求延迟毫秒</td></tr>
+          <tr><td><code>status</code></td><td class="type">varchar(16)</td><td>SETTLED / FAILED / REFUNDED</td></tr>
+          <tr><td><code>finished_at</code></td><td class="type">timestamptz</td><td>结算完成时间</td></tr>
+          <tr><td><code>created_at</code></td><td class="type">timestamptz</td><td>创建时间</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag orange">PG</span>
+        <span class="section-title">event_outbox 表 — 保证至少一次投递</span>
+      </div>
+      <table class="schema-table">
+        <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td class="type">bigserial</td><td><span class="pk">PK</span></td></tr>
+          <tr><td><code>event_type</code></td><td class="type">varchar(64)</td><td>REQUEST_SETTLED</td></tr>
+          <tr><td><code>aggregate_id</code></td><td class="type">varchar(64)</td><td>request_id</td></tr>
+          <tr><td><code>payload</code></td><td class="type">jsonb</td><td>结算结果核心字段 JSON</td></tr>
+          <tr><td><code>status</code></td><td class="type">varchar(16)</td><td>PENDING / SENT / FAILED</td></tr>
+          <tr><td><code>retry_count</code></td><td class="type">int</td><td>重试次数 (default 0)</td></tr>
+          <tr><td><code>created_at</code></td><td class="type">timestamptz</td><td>事件创建时间</td></tr>
+          <tr><td><code>sent_at</code></td><td class="type">timestamptz</td><td>成功发送时间</td></tr>
+        </tbody>
+      </table>
+      <div class="evolve-card">
+        <div class="ec-title">payload 内容</div>
+        <div class="ec-desc">
+          <code>request_id</code>, <code>biz_date</code>, <code>agent_id</code>, <code>user_id</code>, <code>provider_id</code>, <code>model</code>,
+          <code>actual_user_amt</code>, <code>actual_agent_amt</code>, <code>actual_platform_cost</code>,
+          <code>agent_profit</code>, <code>platform_profit</code>,
+          <code>input_tokens</code>, <code>output_tokens</code>, <code>status</code>, <code>finished_at</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- TAB 4: WORKER                           -->
+  <!-- ════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-worker">
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag orange">WORKER</span>
+        <span class="section-title">Analytics Worker — Go 独立服务</span>
+      </div>
+
+      <div class="cards-2" style="margin-bottom:24px;">
+        <div class="principle-card" style="border-left:3px solid var(--orange);">
+          <div class="pc-title" style="color:var(--orange);">技术选型</div>
+          <div class="pc-desc">
+            Go 独立进程，和 Gin 分开部署<br>
+            ClickHouse 客户端: <code>clickhouse-go</code> (官方推荐)<br>
+            连接方式: native protocol (9000 端口)
+          </div>
+        </div>
+        <div class="principle-card" style="border-left:3px solid var(--orange);">
+          <div class="pc-title" style="color:var(--orange);">写入策略</div>
+          <div class="pc-desc">
+            优先自己攒批次: 每 1000 条 或 每 2 秒 flush<br>
+            备选: <code>async_insert=1, wait_for_async_insert=1</code><br>
+            避免大量小批次同步插入 (too many parts)
+          </div>
+        </div>
+      </div>
+
+      <div class="section-header">
+        <span class="section-tag orange">FLOW</span>
+        <span class="section-title">Worker 处理流程</span>
+      </div>
+
+      <div class="diagram-wrap" style="padding:20px;">
+        <svg width="900" height="320" viewBox="0 0 900 320">
+          <rect width="900" height="320" fill="none"/>
+
+          <!-- Step 1: Poll -->
+          <rect x="0" y="10" width="180" height="70" rx="8" fill="rgba(21,138,62,.08)" stroke="rgba(21,138,62,.3)" stroke-width="1.5"/>
+          <text x="90" y="35" text-anchor="middle" font-size="11" font-weight="600" fill="#158a3e">1. 扫描 Outbox</text>
+          <text x="90" y="55" text-anchor="middle" font-size="9" fill="#555a6e" class="mono">SELECT * FROM</text>
+          <text x="90" y="68" text-anchor="middle" font-size="9" fill="#555a6e" class="mono">event_outbox</text>
+          <text x="90" y="95" text-anchor="middle" font-size="9" fill="#8b90a0" class="mono">WHERE status='PENDING'</text>
+          <text x="90" y="108" text-anchor="middle" font-size="9" fill="#8b90a0" class="mono">ORDER BY id LIMIT 1000</text>
+
+          <line x1="180" y1="45" x2="218" y2="45" stroke="#c06c00" stroke-width="1.5" marker-end="url(#a-orange)"/>
+
+          <!-- Step 2: Parse -->
+          <rect x="220" y="10" width="160" height="70" rx="8" fill="rgba(192,108,0,.08)" stroke="rgba(192,108,0,.3)" stroke-width="1.5"/>
+          <text x="300" y="35" text-anchor="middle" font-size="11" font-weight="600" fill="#c06c00">2. 解析 Payload</text>
+          <text x="300" y="55" text-anchor="middle" font-size="9" fill="#555a6e">JSON -> struct</text>
+          <text x="300" y="68" text-anchor="middle" font-size="9" fill="#555a6e">组装 CH 插入行</text>
+
+          <line x1="380" y1="45" x2="418" y2="45" stroke="#c06c00" stroke-width="1.5" marker-end="url(#a-orange)"/>
+
+          <!-- Step 3: Batch write -->
+          <rect x="420" y="10" width="180" height="70" rx="8" fill="rgba(107,79,170,.08)" stroke="rgba(107,79,170,.3)" stroke-width="1.5"/>
+          <text x="510" y="35" text-anchor="middle" font-size="11" font-weight="600" fill="#6b4faa">3. 批量写 ClickHouse</text>
+          <text x="510" y="55" text-anchor="middle" font-size="9" fill="#555a6e" class="mono">batch.Append(row)</text>
+          <text x="510" y="68" text-anchor="middle" font-size="9" fill="#555a6e" class="mono">batch.Send()</text>
+
+          <line x1="600" y1="45" x2="638" y2="45" stroke="#c06c00" stroke-width="1.5" marker-end="url(#a-orange)"/>
+
+          <!-- Step 4: Mark sent -->
+          <rect x="640" y="10" width="180" height="70" rx="8" fill="rgba(21,138,62,.08)" stroke="rgba(21,138,62,.3)" stroke-width="1.5"/>
+          <text x="730" y="35" text-anchor="middle" font-size="11" font-weight="600" fill="#158a3e">4. 标记已发送</text>
+          <text x="730" y="55" text-anchor="middle" font-size="9" fill="#555a6e" class="mono">UPDATE event_outbox</text>
+          <text x="730" y="68" text-anchor="middle" font-size="9" fill="#555a6e" class="mono">SET status='SENT'</text>
+
+          <!-- Error path -->
+          <line x1="510" y1="80" x2="510" y2="138" stroke="#d42f3f" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#a-red)"/>
+          <rect x="420" y="140" width="180" height="50" rx="8" fill="rgba(212,47,63,.06)" stroke="rgba(212,47,63,.2)" stroke-width="1"/>
+          <text x="510" y="162" text-anchor="middle" font-size="10" font-weight="600" fill="#d42f3f">写入失败</text>
+          <text x="510" y="178" text-anchor="middle" font-size="9" fill="#555a6e">retry_count++ 下次再试</text>
+
+          <!-- Loop arrow -->
+          <path d="M730,80 L730,230 L90,230 L90,120" fill="none" stroke="#c06c00" stroke-width="1" stroke-dasharray="6,3" marker-end="url(#a-orange)"/>
+          <text x="400" y="248" text-anchor="middle" font-size="9" fill="#c06c00" class="mono">sleep 1-2s -> next batch</text>
+
+          <!-- Go code hint -->
+          <rect x="0" y="265" width="820" height="44" rx="6" fill="rgba(192,108,0,.06)" stroke="rgba(192,108,0,.15)" stroke-width="1"/>
+          <text x="20" y="283" font-size="10" font-weight="600" fill="#c06c00">Go 客户端</text>
+          <text x="20" y="299" font-size="10" fill="#555a6e" class="mono">go get github.com/ClickHouse/clickhouse-go/v2</text>
+          <text x="490" y="283" font-size="10" font-weight="600" fill="#c06c00">推荐写入模式</text>
+          <text x="490" y="299" font-size="10" fill="#555a6e" class="mono">batch.Append() + batch.Send() (自攒批次)</text>
+        </svg>
+      </div>
+
+      <div class="evolve-card">
+        <div class="ec-title">后续演进: Worker -> Kafka -> Consumer</div>
+        <div class="ec-desc">
+          等需要多下游消费 / 事件回放 / consumer lag 监控时，把 <code>outbox -> worker</code> 升级为 <code>outbox -> Kafka -> consumer</code>。
+          ClickHouse 官方支持 Kafka table engine 直接消费。当前阶段没必要一步上 Kafka。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- TAB 5: CLICKHOUSE SCHEMA                -->
+  <!-- ════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-ch">
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag purple">CH</span>
+        <span class="section-title">fact_request_settlement — 明细事实表</span>
+      </div>
+      <table class="schema-table">
+        <thead><tr><th>字段</th><th>CH 类型</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>request_id</code></td><td class="type">String</td><td>请求唯一标识</td></tr>
+          <tr><td><code>biz_date</code></td><td class="type">Date</td><td>业务日期 (分区键)</td></tr>
+          <tr><td><code>finished_at</code></td><td class="type">DateTime</td><td>结算完成时间</td></tr>
+          <tr><td><code>agent_id</code></td><td class="type">UInt32</td><td>代理商 ID</td></tr>
+          <tr><td><code>user_id</code></td><td class="type">UInt32</td><td>用户 ID</td></tr>
+          <tr><td><code>provider_id</code></td><td class="type">UInt32</td><td>供应商 ID</td></tr>
+          <tr><td><code>channel_id</code></td><td class="type">UInt32</td><td>渠道 ID</td></tr>
+          <tr><td><code>model</code></td><td class="type">LowCardinality(String)</td><td>模型名 (低基数优化)</td></tr>
+          <tr><td><code>status</code></td><td class="type">LowCardinality(String)</td><td>SETTLED / FAILED</td></tr>
+          <tr><td><code>input_tokens</code></td><td class="type">UInt32</td><td>输入 token</td></tr>
+          <tr><td><code>output_tokens</code></td><td class="type">UInt32</td><td>输出 token</td></tr>
+          <tr><td><code>total_tokens</code></td><td class="type">UInt32</td><td>总 token</td></tr>
+          <tr><td><code>actual_user_amt</code></td><td class="type">Int64</td><td>用户实扣</td></tr>
+          <tr><td><code>actual_agent_amt</code></td><td class="type">Int64</td><td>代理商结算</td></tr>
+          <tr><td><code>actual_platform_cost</code></td><td class="type">Int64</td><td>平台成本</td></tr>
+          <tr><td><code>agent_profit</code></td><td class="type">Int64</td><td>代理商利润</td></tr>
+          <tr><td><code>platform_profit</code></td><td class="type">Int64</td><td>平台利润</td></tr>
+          <tr><td><code>latency_ms</code></td><td class="type">UInt32</td><td>请求延迟</td></tr>
+        </tbody>
+      </table>
+      <div class="code-block"><span class="kw">CREATE TABLE</span> fact_request_settlement (
+    ...columns...
+) <span class="kw">ENGINE</span> = MergeTree()
+<span class="kw">PARTITION BY</span> toYYYYMM(biz_date)
+<span class="kw">ORDER BY</span> (biz_date, agent_id, model, request_id)
+<span class="kw">TTL</span> biz_date + <span class="kw">INTERVAL</span> 1 <span class="kw">YEAR</span>
+<span class="kw">SETTINGS</span> index_granularity = 8192</div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag purple">MV</span>
+        <span class="section-title">agg_minute — 分钟聚合 (Materialized View)</span>
+      </div>
+      <table class="schema-table">
+        <thead><tr><th>字段</th><th>CH 类型</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>minute</code></td><td class="type">DateTime</td><td>分钟时间戳 (toStartOfMinute)</td></tr>
+          <tr><td><code>agent_id</code></td><td class="type">UInt32</td><td>代理商 ID</td></tr>
+          <tr><td><code>model</code></td><td class="type">LowCardinality(String)</td><td>模型名</td></tr>
+          <tr><td><code>request_count</code></td><td class="type">AggregateFunction(count)</td><td>请求数</td></tr>
+          <tr><td><code>sum_tokens</code></td><td class="type">AggregateFunction(sum, UInt64)</td><td>token 总量</td></tr>
+          <tr><td><code>sum_user_amt</code></td><td class="type">AggregateFunction(sum, Int64)</td><td>用户收入</td></tr>
+          <tr><td><code>sum_agent_amt</code></td><td class="type">AggregateFunction(sum, Int64)</td><td>代理商结算</td></tr>
+          <tr><td><code>sum_platform_cost</code></td><td class="type">AggregateFunction(sum, Int64)</td><td>平台成本</td></tr>
+          <tr><td><code>sum_agent_profit</code></td><td class="type">AggregateFunction(sum, Int64)</td><td>代理商利润</td></tr>
+          <tr><td><code>sum_platform_profit</code></td><td class="type">AggregateFunction(sum, Int64)</td><td>平台利润</td></tr>
+        </tbody>
+      </table>
+      <div class="code-block"><span class="kw">CREATE MATERIALIZED VIEW</span> mv_agg_minute
+<span class="kw">TO</span> agg_minute <span class="kw">AS</span>
+<span class="kw">SELECT</span>
+    toStartOfMinute(finished_at) <span class="kw">AS</span> minute,
+    agent_id, model,
+    countState()            <span class="kw">AS</span> request_count,
+    sumState(total_tokens)  <span class="kw">AS</span> sum_tokens,
+    sumState(actual_user_amt)      <span class="kw">AS</span> sum_user_amt,
+    sumState(actual_agent_amt)     <span class="kw">AS</span> sum_agent_amt,
+    sumState(actual_platform_cost) <span class="kw">AS</span> sum_platform_cost,
+    sumState(agent_profit)         <span class="kw">AS</span> sum_agent_profit,
+    sumState(platform_profit)      <span class="kw">AS</span> sum_platform_profit
+<span class="kw">FROM</span> fact_request_settlement
+<span class="kw">GROUP BY</span> minute, agent_id, model</div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag purple">MV</span>
+        <span class="section-title">agg_daily — 日聚合 (Materialized View)</span>
+      </div>
+      <table class="schema-table">
+        <thead><tr><th>字段</th><th>CH 类型</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>date</code></td><td class="type">Date</td><td>日期</td></tr>
+          <tr><td><code>agent_id</code></td><td class="type">UInt32</td><td>代理商</td></tr>
+          <tr><td><code>model</code></td><td class="type">LowCardinality(String)</td><td>模型</td></tr>
+          <tr><td><code>provider_id</code></td><td class="type">UInt32</td><td>供应商</td></tr>
+          <tr><td><code>request_count / sum_tokens / sum_*_amt / sum_*_profit</code></td><td class="type">AggregateFunction(...)</td><td>同分钟表</td></tr>
+          <tr><td><code>avg_latency</code></td><td class="type">AggregateFunction(avg, UInt32)</td><td>平均延迟</td></tr>
+        </tbody>
+      </table>
+      <div class="code-block"><span class="kw">CREATE MATERIALIZED VIEW</span> mv_agg_daily
+<span class="kw">TO</span> agg_daily <span class="kw">AS</span>
+<span class="kw">SELECT</span>
+    biz_date <span class="kw">AS</span> date,
+    agent_id, model, provider_id,
+    countState()            <span class="kw">AS</span> request_count,
+    sumState(total_tokens)  <span class="kw">AS</span> sum_tokens,
+    sumState(actual_user_amt)      <span class="kw">AS</span> sum_user_amt,
+    <span class="cmt">-- ... same pattern ...</span>
+    avgState(latency_ms)    <span class="kw">AS</span> avg_latency
+<span class="kw">FROM</span> fact_request_settlement
+<span class="kw">GROUP BY</span> date, agent_id, model, provider_id</div>
+
+      <div class="evolve-card">
+        <div class="ec-title">物化视图工作原理</div>
+        <div class="ec-desc">
+          数据插入 <code>fact_request_settlement</code> 时，ClickHouse 自动把聚合结果写入 <code>agg_minute</code> 和 <code>agg_daily</code>。
+          计算成本从查询阶段转移到插入阶段。Gin 报表直接查聚合表，不用扫明细。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- TAB 6: ROADMAP                          -->
+  <!-- ════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-roadmap">
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag red">STEP</span>
+        <span class="section-title">最小改造落地顺序</span>
+      </div>
+
+      <div class="cards-4" style="margin-bottom:24px;">
+        <div class="step-card">
+          <div class="sc-num s1">STEP 1</div>
+          <div class="sc-title">PG 新增两张表</div>
+          <div class="sc-desc">在现有 BillingSession.Settle 事务里追加写入</div>
+          <ul class="sc-list">
+            <li>新建 <code>request_settlement</code></li>
+            <li>新建 <code>event_outbox</code></li>
+            <li>改 Settle 事务：写结算单 + outbox</li>
+            <li>保留 logs 写入不变（兼容）</li>
+          </ul>
+        </div>
+        <div class="step-card">
+          <div class="sc-num s2">STEP 2</div>
+          <div class="sc-title">Go Analytics Worker</div>
+          <div class="sc-desc">独立进程，轮询 outbox，批量写 CH</div>
+          <ul class="sc-list">
+            <li>Go 独立服务</li>
+            <li>用 <code>clickhouse-go</code></li>
+            <li>每 1-2 秒扫一次 outbox</li>
+            <li>攒批 1000 条 flush</li>
+            <li>写入成功标 SENT</li>
+          </ul>
+        </div>
+        <div class="step-card">
+          <div class="sc-num s3">STEP 3</div>
+          <div class="sc-title">ClickHouse 表 + 物化视图</div>
+          <div class="sc-desc">建明细表 + 自动聚合</div>
+          <ul class="sc-list">
+            <li>部署 ClickHouse</li>
+            <li>建 <code>fact_request_settlement</code></li>
+            <li>建 <code>agg_minute</code> MV</li>
+            <li>建 <code>agg_daily</code> MV</li>
+            <li>灌入历史数据 (从 PG logs 同步)</li>
+          </ul>
+        </div>
+        <div class="step-card">
+          <div class="sc-num s4">STEP 4</div>
+          <div class="sc-title">Gin 报表接口</div>
+          <div class="sc-desc">新增 / 改造查询接口</div>
+          <ul class="sc-list">
+            <li>新增报表接口查 ClickHouse</li>
+            <li>交易查询仍走 PG</li>
+            <li>PG <code>billing_daily_stats</code> 降级备份</li>
+            <li>30min cron 聚合保留做兜底</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="diagram-wrap">
+        <svg width="1080" height="200" viewBox="0 0 1080 200">
+          <rect width="1080" height="200" fill="none"/>
+
+          <line x1="60" y1="60" x2="1020" y2="60" stroke="#d8dbe3" stroke-width="2"/>
+
+          <circle cx="150" cy="60" r="18" fill="#158a3e" stroke="#fff" stroke-width="3"/>
+          <text x="150" y="65" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">1</text>
+          <text x="150" y="100" text-anchor="middle" font-size="11" font-weight="600" fill="#158a3e">PG 新增表</text>
+          <text x="150" y="116" text-anchor="middle" font-size="9" fill="#555a6e">settlement + outbox</text>
+          <text x="150" y="132" text-anchor="middle" font-size="9" fill="#8b90a0" class="mono">无外部依赖</text>
+
+          <line x1="230" y1="60" x2="340" y2="60" stroke="#d8dbe3" stroke-width="2" marker-end="url(#a-blue)"/>
+
+          <circle cx="400" cy="60" r="18" fill="#c06c00" stroke="#fff" stroke-width="3"/>
+          <text x="400" y="65" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">2</text>
+          <text x="400" y="100" text-anchor="middle" font-size="11" font-weight="600" fill="#c06c00">Worker</text>
+          <text x="400" y="116" text-anchor="middle" font-size="9" fill="#555a6e">clickhouse-go</text>
+          <text x="400" y="132" text-anchor="middle" font-size="9" fill="#8b90a0" class="mono">Go 独立服务</text>
+
+          <line x1="480" y1="60" x2="590" y2="60" stroke="#d8dbe3" stroke-width="2" marker-end="url(#a-blue)"/>
+
+          <circle cx="650" cy="60" r="18" fill="#6b4faa" stroke="#fff" stroke-width="3"/>
+          <text x="650" y="65" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">3</text>
+          <text x="650" y="100" text-anchor="middle" font-size="11" font-weight="600" fill="#6b4faa">CH 表 + MV</text>
+          <text x="650" y="116" text-anchor="middle" font-size="9" fill="#555a6e">明细 + 分钟 + 日</text>
+          <text x="650" y="132" text-anchor="middle" font-size="9" fill="#8b90a0" class="mono">部署 ClickHouse</text>
+
+          <line x1="730" y1="60" x2="840" y2="60" stroke="#d8dbe3" stroke-width="2" marker-end="url(#a-blue)"/>
+
+          <circle cx="900" cy="60" r="18" fill="#0c7bb3" stroke="#fff" stroke-width="3"/>
+          <text x="900" y="65" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">4</text>
+          <text x="900" y="100" text-anchor="middle" font-size="11" font-weight="600" fill="#0c7bb3">Gin 报表</text>
+          <text x="900" y="116" text-anchor="middle" font-size="9" fill="#555a6e">接口查 ClickHouse</text>
+          <text x="900" y="132" text-anchor="middle" font-size="9" fill="#8b90a0" class="mono">PG 降级兜底</text>
+
+          <rect x="190" y="155" width="700" height="34" rx="8" fill="rgba(192,108,0,.06)" stroke="rgba(192,108,0,.15)" stroke-width="1"/>
+          <text x="540" y="174" text-anchor="middle" font-size="10" font-weight="600" fill="#c06c00">每步独立可上线 &middot; Gin + PG 主链路全程不动 &middot; 老系统做降级兜底</text>
+        </svg>
+      </div>
+
+      <div class="evolve-card" style="margin-top:24px;">
+        <div class="ec-title">未来演进: Outbox -> Kafka</div>
+        <div class="ec-desc">
+          当前: <code>PG outbox -> Worker -> ClickHouse</code><br>
+          未来: <code>PG outbox -> Kafka -> Consumer -> ClickHouse</code><br><br>
+          触发条件: 需要多下游消费 / 事件回放 / consumer lag 监控 / 接更多实时系统时再升级。<br>
+          ClickHouse 官方支持 Kafka table engine 直接消费，低门槛接入。
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle"></h2>
+      <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+/* Tabs */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* Details */
+const details = {
+  'd-user': { title: '终端用户', html: `<p>通过代理商 API Key 发起请求。Gin 鉴权后进入计费链路。</p>`},
+  'd-gin': { title: 'Gin 接入层', html: `
+    <h3>不动的部分</h3>
+    <ul class="flow-list">
+      <li>接收请求 + 鉴权 + 识别代理商/用户/模型</li>
+      <li>调 BillingSession 预扣</li>
+      <li>转发上游模型</li>
+      <li>调 BillingSession 实扣</li>
+      <li>返回结果</li>
+    </ul>
+    <h3 class="green">新增的部分</h3>
+    <ul class="flow-list">
+      <li>报表查询接口 — 查 ClickHouse</li>
+      <li>明细查询接口 — 查 ClickHouse</li>
+    </ul>
+    <p>交易查询（余额、账本）仍走 PG。</p>
+  `},
+  'd-pg': { title: 'PostgreSQL — 真账系统', html: `
+    <h3 class="green">核心原则</h3>
+    <p><strong>PG 主链路不动。</strong>所有预扣/实扣/退款/余额逻辑不变。</p>
+    <h3 class="green">新增</h3>
+    <ol class="algo-steps">
+      <li class="green-border"><span class="n green">1</span>在 Settle 事务里追加写 <code>request_settlement</code></li>
+      <li class="green-border"><span class="n green">2</span>在 Settle 事务里追加写 <code>event_outbox</code></li>
+    </ol>
+    <p>同一事务保证：只要结算成功，outbox 事件就一定存在。</p>
+  `},
+  'd-upstream': { title: '上游模型', html: `<p>40+ 供应商。请求转发链路完全不变。</p>`},
+  'd-worker': { title: 'Analytics Worker', html: `
+    <h3 class="orange">技术选型</h3>
+    <dl class="kv-grid">
+      <dt>语言</dt><dd>Go 独立服务</dd>
+      <dt>CH 客户端</dt><dd>clickhouse-go (官方推荐)</dd>
+      <dt>部署</dt><dd>和 Gin 分开部署</dd>
+    </dl>
+    <h3 class="orange">工作流</h3>
+    <ol class="algo-steps">
+      <li class="orange-border"><span class="n orange">1</span>每 1-2 秒扫描 event_outbox (status=PENDING)</li>
+      <li class="orange-border"><span class="n orange">2</span>解析 payload JSON</li>
+      <li class="orange-border"><span class="n orange">3</span>攒批 1000 条或 2 秒 flush</li>
+      <li class="orange-border"><span class="n orange">4</span>batch.Send() 写 ClickHouse</li>
+      <li class="orange-border"><span class="n orange">5</span>成功后 UPDATE status='SENT'</li>
+    </ol>
+  `},
+  'd-ch': { title: 'ClickHouse — 分析库', html: `
+    <h3 class="purple">核心定位</h3>
+    <p>只吃 PG 已确认的结算事实。不参与扣费判断。</p>
+    <h3 class="purple">三张表</h3>
+    <ol class="algo-steps">
+      <li class="purple-border"><span class="n purple">1</span><code>fact_request_settlement</code> — 明细事实表</li>
+      <li class="purple-border"><span class="n purple">2</span><code>agg_minute</code> — 分钟聚合 (Materialized View)</li>
+      <li class="purple-border"><span class="n purple">3</span><code>agg_daily</code> — 日聚合 (Materialized View)</li>
+    </ol>
+  `},
+  'd-preauth': { title: '预扣 PREAUTH', html: `
+    <h3 class="green">保持不变</h3>
+    <p>现有 <code>BillingSession.preConsume()</code> 和 <code>AgentBillingSession.PreConsume()</code> 逻辑不动。</p>
+    <p>ClickHouse 不参与预扣阶段。</p>
+  `},
+  'd-settle': { title: '实扣 SETTLE', html: `
+    <h3 class="green">保持不变</h3>
+    <p>现有 <code>BillingSession.Settle()</code> 差额调整逻辑不动。</p>
+    <p>只是在同一事务里追加写 settlement + outbox。</p>
+  `},
+  'd-ledger': { title: 'ledger_entry', html: `
+    <h3>统一账本</h3>
+    <p>可选增强：追加统一账本记录，支持 PREAUTH / SETTLE / REFUND 类型追溯。</p>
+    <p>不影响 ClickHouse 集成，但提升对账能力。</p>
+  `},
+  'd-settlement': { title: 'request_settlement — 结算事实来源', html: `
+    <h3 class="green">核心表</h3>
+    <p>一笔请求一条。保存最终三方金额 + 利润 + token。</p>
+    <p>这张表是 ClickHouse 的<strong>唯一数据来源</strong>。</p>
+    <h3>利润公式</h3>
+    <p><code>agent_profit = actual_user_amt - actual_agent_amt</code><br><code>platform_profit = actual_agent_amt - actual_platform_cost</code></p>
+  `},
+  'd-outbox': { title: 'event_outbox — 异步投递保障', html: `
+    <h3 class="orange">工作原理</h3>
+    <p>结算事务提交时，同事务写一条 outbox 事件。</p>
+    <ol class="algo-steps">
+      <li class="orange-border"><span class="n orange">1</span>event_type = REQUEST_SETTLED</li>
+      <li class="orange-border"><span class="n orange">2</span>payload = settlement 核心字段 JSON</li>
+      <li class="orange-border"><span class="n orange">3</span>status = PENDING</li>
+    </ol>
+    <h3>保障</h3>
+    <ul class="flow-list">
+      <li>只要 PG 事务成功，事件就一定存在</li>
+      <li>Worker 挂了重启后继续消费</li>
+      <li>不会出现"扣费成功但事件丢失"</li>
+    </ul>
+  `},
+  'd-log': { title: 'logs 表 (兼容保留)', html: `
+    <h3>保持不变</h3>
+    <p>现有 <code>RecordConsumeLog</code> 逻辑不动。30min 聚合 cron 保留做降级兜底。</p>
+    <p>ClickHouse 数据源是 settlement，不是 logs。</p>
+  `},
+  'd-worker-scan': { title: 'Worker 扫描逻辑', html: `
+    <h3 class="orange">SQL</h3>
+    <p><code>SELECT * FROM event_outbox WHERE status='PENDING' ORDER BY id LIMIT 1000</code></p>
+    <h3 class="orange">批量写入</h3>
+    <p>攒满 1000 条或等 2 秒，调 <code>batch.Send()</code> 一次写入 ClickHouse。</p>
+    <p>写入成功后批量 <code>UPDATE status='SENT'</code>。</p>
+    <p>写入失败则 <code>retry_count++</code>，下一轮重试。</p>
+  `},
+  'd-fact': { title: 'fact_request_settlement', html: `
+    <h3 class="purple">明细事实表</h3>
+    <p>一行一笔请求。所有统计的源表。</p>
+    <dl class="kv-grid">
+      <dt>Engine</dt><dd>MergeTree</dd>
+      <dt>Partition</dt><dd>toYYYYMM(biz_date)</dd>
+      <dt>Order By</dt><dd>(biz_date, agent_id, model, request_id)</dd>
+      <dt>TTL</dt><dd>biz_date + 1 YEAR</dd>
+    </dl>
+  `},
+  'd-agg-min': { title: 'agg_minute — 分钟聚合', html: `
+    <h3 class="purple">自动聚合</h3>
+    <p>Materialized View 在 INSERT 时自动触发。</p>
+    <p>维度: minute x agent_id x model</p>
+    <p>用途: 实时看板、分钟级监控。</p>
+  `},
+  'd-agg-day': { title: 'agg_daily — 日聚合', html: `
+    <h3 class="purple">自动聚合</h3>
+    <p>维度: date x agent_id x model x provider_id</p>
+    <p>用途: 日报、月报、月账单。替代 PG 的 billing_daily_stats。</p>
+  `}
+};
+
+/* Modal */
+const overlay = document.getElementById('modalOverlay');
+const modalTitle = document.getElementById('modalTitle');
+const modalBody = document.getElementById('modalBody');
+
+function openModal(key) {
+  const d = details[key];
+  if (!d) return;
+  modalTitle.textContent = d.title;
+  modalBody.innerHTML = d.html;
+  overlay.classList.add('open');
+}
+
+document.getElementById('modalClose').addEventListener('click', () => overlay.classList.remove('open'));
+overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.classList.remove('open'); });
+
+document.querySelectorAll('.node-box[data-detail]').forEach(el => {
+  el.addEventListener('click', () => openModal(el.dataset.detail));
+});
+</script>
+</body>
+</html>
